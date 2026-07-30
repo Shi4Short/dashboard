@@ -28,14 +28,18 @@ export function TodayTab({
     (g) => g.items.length
   );
 
+  // Each task/goal/milestone already logs itself to Evidence the moment it's
+  // checked off (see useManifestState's logCompletion), so this only needs to
+  // cover what that doesn't: pitch count and the freeform note. Re-bundling
+  // done tasks here too would just duplicate their individual entries.
   const submitEOD = () => {
     const bullets: string[] = [];
-    state.tasks.filter((t) => t.date === t0 && t.done).forEach((t) => bullets.push(t.title));
     const pitchCount = state.pitchLog[t0] || 0;
     if (pitchCount > 0) bullets.push(`${pitchCount} pitch${pitchCount > 1 ? "es" : ""} sent`);
     if (eodInput.trim()) bullets.push(eodInput.trim());
-    const summary = bullets.length ? bullets.map((b) => "• " + b).join("\n") : "(nothing marked complete)";
-    actions.addLog(summary);
+    if (bullets.length) {
+      actions.addLog(bullets.map((b) => "• " + b).join("\n"));
+    }
     setEodInput("");
     onViewEvidence();
   };

@@ -31,6 +31,7 @@ export function ensureSchema(): Promise<void> {
         week_start text NOT NULL,
         done boolean NOT NULL DEFAULT false,
         notion_page_id text UNIQUE,
+        notion_done boolean NOT NULL DEFAULT false,
         created_at timestamptz NOT NULL DEFAULT now()
       )`;
       await sql`CREATE TABLE IF NOT EXISTS tasks (
@@ -44,6 +45,7 @@ export function ensureSchema(): Promise<void> {
         push_count integer NOT NULL DEFAULT 0,
         goal_id text REFERENCES week_goals(id) ON DELETE SET NULL,
         notion_page_id text UNIQUE,
+        notion_done boolean NOT NULL DEFAULT false,
         created_at timestamptz NOT NULL DEFAULT now()
       )`;
       // CREATE TABLE IF NOT EXISTS is a no-op on tables that already exist in
@@ -51,9 +53,11 @@ export function ensureSchema(): Promise<void> {
       // explicit additive migration here too, or they silently never show up
       // on the real database no matter how many times this function runs.
       await sql`ALTER TABLE week_goals ADD COLUMN IF NOT EXISTS notion_page_id text UNIQUE`;
+      await sql`ALTER TABLE week_goals ADD COLUMN IF NOT EXISTS notion_done boolean NOT NULL DEFAULT false`;
       await sql`ALTER TABLE tasks ADD COLUMN IF NOT EXISTS push_count integer NOT NULL DEFAULT 0`;
       await sql`ALTER TABLE tasks ADD COLUMN IF NOT EXISTS goal_id text REFERENCES week_goals(id) ON DELETE SET NULL`;
       await sql`ALTER TABLE tasks ADD COLUMN IF NOT EXISTS notion_page_id text UNIQUE`;
+      await sql`ALTER TABLE tasks ADD COLUMN IF NOT EXISTS notion_done boolean NOT NULL DEFAULT false`;
 
       await sql`CREATE TABLE IF NOT EXISTS deals (
         id text PRIMARY KEY,
@@ -267,17 +271,20 @@ export async function seedIfNeeded(): Promise<void> {
 
 /**
  * The notion_page_id of every Notion-linked task/week_goal that's marked
- * done locally — used to push completions back to Notion. Title/date/notes
- * stay one-way from Notion (that's actual content); done/Status is the one
- * field allowed to flow both ways, and only ever toward "done", never back
- * toward "not done" in either direction, so neither side can silently
- * un-complete something the other side already finished.
+ * done locally but whose Notion copy wasn't Done as of the last pull
+ * (notion_done tracks that separately from the locally-editable `done`, so
+ * an already-confirmed-synced item doesn't get re-pushed — Notion API calls
+ * every sync click otherwise). Title/date/notes stay one-way from Notion
+ * (that's actual content); done/Status is the one field allowed to flow
+ * both ways, and only ever toward "done", never back toward "not done" in
+ * either direction, so neither side can silently un-complete something the
+ * other side already finished.
  */
 export async function getNotionLinkedDoneIds(): Promise<string[]> {
   await ensureSchema();
   const [taskRows, goalRows] = await Promise.all([
-    sql`SELECT notion_page_id FROM tasks WHERE done = true AND notion_page_id IS NOT NULL`,
-    sql`SELECT notion_page_id FROM week_goals WHERE done = true AND notion_page_id IS NOT NULL`,
+    sql`SELECT notion_page_id FROM tasks WHERE done = true AND notion_done = false AND notion_page_id IS NOT NULL`,
+    sql`SELECT notion_page_id FROM week_goals WHERE done = true AND notion_done = false AND notion_page_id IS NOT NULL`,
   ]);
   return [...taskRows, ...goalRows].map((r) => r.notion_page_id as string);
 }
@@ -287,7 +294,9 @@ export async function getNotionLinkedDoneIds(): Promise<string[]> {
  * tables, keyed on notion_page_id. Notion owns title/date/notes on every
  * sync; `done` only ever moves false -> true from Notion, never the reverse,
  * so checking something off locally is never clobbered by a stale
- * "Not started" still sitting in Notion. Items without a date can't be
+ * "Not started" still sitting in Notion. `notion_done` is a plain mirror of
+ * Notion's own status (not OR'd with the local value) so the next push
+ * knows what's already confirmed synced. Items without a date can't be
  * placed on the date-based Today/Week/Month grids, so they're skipped.
  */
 export async function syncNotionGoalsAndTasks(
@@ -307,22 +316,24 @@ export async function syncNotionGoalsAndTasks(
     if (item.period === "Weekly") {
       const weekStart = weekStartForDate(item.date);
       await sql`
-        INSERT INTO week_goals (id, text, week_start, done, notion_page_id)
-        VALUES (${randomUUID()}, ${item.name}, ${weekStart}, ${item.done}, ${item.id})
+        INSERT INTO week_goals (id, text, week_start, done, notion_page_id, notion_done)
+        VALUES (${randomUUID()}, ${item.name}, ${weekStart}, ${item.done}, ${item.id}, ${item.done})
         ON CONFLICT (notion_page_id) DO UPDATE
         SET text = EXCLUDED.text,
             week_start = EXCLUDED.week_start,
-            done = week_goals.done OR EXCLUDED.done
+            done = week_goals.done OR EXCLUDED.done,
+            notion_done = EXCLUDED.notion_done
       `;
       goalsSynced++;
     } else {
       await sql`
-        INSERT INTO tasks (id, title, category, date, time, done, from_calendar, notion_page_id)
-        VALUES (${randomUUID()}, ${item.name}, 'personal', ${item.date}, '', ${item.done}, false, ${item.id})
+        INSERT INTO tasks (id, title, category, date, time, done, from_calendar, notion_page_id, notion_done)
+        VALUES (${randomUUID()}, ${item.name}, 'personal', ${item.date}, '', ${item.done}, false, ${item.id}, ${item.done})
         ON CONFLICT (notion_page_id) DO UPDATE
         SET title = EXCLUDED.title,
             date = EXCLUDED.date,
-            done = tasks.done OR EXCLUDED.done
+            done = tasks.done OR EXCLUDED.done,
+            notion_done = EXCLUDED.notion_done
       `;
       tasksSynced++;
     }

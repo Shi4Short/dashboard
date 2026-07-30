@@ -93,3 +93,18 @@ export async function fetchGoalsAndTasks(): Promise<NotionGoalTask[]> {
       return { id: page.id, name, date, period, notes, done };
     });
 }
+
+/**
+ * The one write this app makes to Notion: flipping Status to Done on a row
+ * that's already there. Never creates pages, never touches title/date/notes
+ * — those stay Notion's own content, which is what the "review before it
+ * touches Notion" rule is actually about. A plain status flip on an existing
+ * row isn't that.
+ */
+export async function markGoalTaskDone(pageId: string): Promise<void> {
+  const notion = getClient();
+  await notion.pages.update({
+    page_id: pageId,
+    properties: { Status: { status: { name: "Done" } } },
+  });
+}

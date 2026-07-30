@@ -46,6 +46,15 @@ export function ensureSchema(): Promise<void> {
         notion_page_id text UNIQUE,
         created_at timestamptz NOT NULL DEFAULT now()
       )`;
+      // CREATE TABLE IF NOT EXISTS is a no-op on tables that already exist in
+      // production, so columns added after the tables' first deploy need an
+      // explicit additive migration here too, or they silently never show up
+      // on the real database no matter how many times this function runs.
+      await sql`ALTER TABLE week_goals ADD COLUMN IF NOT EXISTS notion_page_id text UNIQUE`;
+      await sql`ALTER TABLE tasks ADD COLUMN IF NOT EXISTS push_count integer NOT NULL DEFAULT 0`;
+      await sql`ALTER TABLE tasks ADD COLUMN IF NOT EXISTS goal_id text REFERENCES week_goals(id) ON DELETE SET NULL`;
+      await sql`ALTER TABLE tasks ADD COLUMN IF NOT EXISTS notion_page_id text UNIQUE`;
+
       await sql`CREATE TABLE IF NOT EXISTS deals (
         id text PRIMARY KEY,
         brand text NOT NULL,

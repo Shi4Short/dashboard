@@ -266,13 +266,29 @@ export async function seedIfNeeded(): Promise<void> {
 }
 
 /**
- * One-way import from Notion's "Goals & Tasks" database into the existing
- * tasks/week_goals tables, keyed on notion_page_id. Notion owns title/date/
- * notes on every sync; `done` only ever moves false -> true from Notion,
- * never the reverse, so checking something off locally is never clobbered
- * by a stale "Not started" still sitting in Notion (this app never writes
- * back to Notion). Items without a date can't be placed on the
- * date-based Today/Week/Month grids, so they're skipped.
+ * The notion_page_id of every Notion-linked task/week_goal that's marked
+ * done locally — used to push completions back to Notion. Title/date/notes
+ * stay one-way from Notion (that's actual content); done/Status is the one
+ * field allowed to flow both ways, and only ever toward "done", never back
+ * toward "not done" in either direction, so neither side can silently
+ * un-complete something the other side already finished.
+ */
+export async function getNotionLinkedDoneIds(): Promise<string[]> {
+  await ensureSchema();
+  const [taskRows, goalRows] = await Promise.all([
+    sql`SELECT notion_page_id FROM tasks WHERE done = true AND notion_page_id IS NOT NULL`,
+    sql`SELECT notion_page_id FROM week_goals WHERE done = true AND notion_page_id IS NOT NULL`,
+  ]);
+  return [...taskRows, ...goalRows].map((r) => r.notion_page_id as string);
+}
+
+/**
+ * Pulls Notion's "Goals & Tasks" database into the existing tasks/week_goals
+ * tables, keyed on notion_page_id. Notion owns title/date/notes on every
+ * sync; `done` only ever moves false -> true from Notion, never the reverse,
+ * so checking something off locally is never clobbered by a stale
+ * "Not started" still sitting in Notion. Items without a date can't be
+ * placed on the date-based Today/Week/Month grids, so they're skipped.
  */
 export async function syncNotionGoalsAndTasks(
   items: NotionGoalTask[]

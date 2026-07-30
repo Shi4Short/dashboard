@@ -264,7 +264,7 @@ export function useManifestState() {
   );
 
   const syncFromNotion = useCallback(async () => {
-    const result = await api<{ tasksSynced: number; goalsSynced: number; skipped: number }>(
+    const result = await api<{ tasksSynced: number; goalsSynced: number; skipped: number; pushed: number }>(
       "/api/notion/sync-tasks",
       { method: "POST" }
     );

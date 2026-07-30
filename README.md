@@ -49,29 +49,35 @@ The Dashboard's "Art Direction Networking" card is a read-only sync of the Notio
 Without `NOTION_TOKEN` set, the card shows "Not connected" instead of breaking the rest of the dashboard — unlike
 Postgres, this integration is optional per the build brief.
 
-### Goals & Tasks import (one-way, manual)
+### Goals & Tasks sync (two-way on status only, manual)
 
-The "Sync from Notion" button on the Dashboard pulls Notion's "Goals & Tasks" database (Name / Date / Period:
-Daily-Weekly-Monthly-Quarterly / Notes / Status) directly into the same `tasks` and `week_goals` tables the
-dashboard already uses — "Weekly" items become week goals, everything else becomes a task dated on its Notion
-date. Items with no date can't be placed on the date-based grids and are skipped (reported in the sync result).
+The "Sync with Notion" button on the Dashboard both pulls and pushes against Notion's "Goals & Tasks" database
+(Name / Date / Period: Daily-Weekly-Monthly-Quarterly / Notes / Status), keyed on `notion_page_id`:
+- **Pull**: Notion rows land in the same `tasks` and `week_goals` tables the dashboard already uses — "Weekly"
+  items become week goals, everything else becomes a task dated on its Notion date. Items with no date can't be
+  placed on the date-based grids and are skipped (reported in the sync result).
+- **Push**: any Notion-linked task/goal marked done locally gets its Notion Status flipped to Done.
 
-This is one-way and manual on purpose, matching the same "review before it touches Notion" rule as the Networking
-card:
-- Notion always overwrites title/date/notes on sync — it's the planning source of truth.
-- `done` only ever moves false → true from Notion, never the reverse, so checking something off in the dashboard
-  can't get silently undone by a stale "Not started" still sitting in Notion — this app never writes back to
-  Notion, full stop.
+The "review before it touches Notion" rule from the build brief is about *content* she's authoring (scripts,
+templates, etc.) — it doesn't apply to flipping a status field on a row that already exists there, so that part
+of this sync can safely be two-way. Everything else stays one-way and title/date/notes stay Notion's content, not
+this app's, on every pull:
+- Notion always overwrites title/date/notes on pull.
+- `done`/Status only ever moves false → true, in *either* direction, never the reverse — so neither side can
+  silently un-complete something the other side already finished.
+- This app never creates new pages in Notion and never touches any property except Status.
 - Sync only runs when you click the button, not on every page load, so a slow/down Notion API can't affect normal
   dashboard use.
 
-Rows pulled in this way carry `fromNotion: true` and render a small "📓 notion" badge (`notion_page_id` is the
-upsert key, stored server-side only — it's not part of the client-facing `Task`/`WeekGoal` shape). Reuses
-`NOTION_TOKEN`; needs the database shared with the same integration as Networking.
-`NOTION_GOALS_TASKS_DATABASE_ID` only needs setting if syncing a different database.
+Rows pulled this way carry `fromNotion: true` and render a small "📓 notion" badge (`notion_page_id` is the sync
+key, stored server-side only — it's not part of the client-facing `Task`/`WeekGoal` shape). Reuses `NOTION_TOKEN`;
+needs the database shared with the same integration as Networking, and — because this direction actually writes —
+that integration needs "Update content" enabled too, not just "Read content" (Notion → Settings → Connections →
+your integration → Capabilities). `NOTION_GOALS_TASKS_DATABASE_ID` only needs setting if syncing a different
+database.
 
 ## What's not here yet
 
 Google Calendar, Gmail, and PayPal integrations are intentionally out of scope for this pass — see the build
-brief. Notion is wired up read-only; writing back to Notion is explicitly out of scope (the brief calls for a
-review step before anything gets pushed there, which doesn't exist yet).
+brief. The Networking card stays read-only; Goals & Tasks status can sync both ways (see above), but this app
+still never writes actual content (titles, notes, new pages) to Notion.

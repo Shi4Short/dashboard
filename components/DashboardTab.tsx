@@ -6,6 +6,7 @@ import { STAGES, type AppState } from "@/lib/types";
 import { fmtDate, money, todayStr, weekDaysFor } from "@/lib/utils";
 import { AddWeekGoalRow, WeekGoalsList, WeekSquares } from "./shared";
 import { NotionNetworkingCard } from "./NotionNetworkingCard";
+import { NotionSyncButton } from "./NotionSyncButton";
 
 export function DashboardTab({ state, actions }: { state: AppState; actions: ManifestActions }) {
   const [ui, setUi] = useState({ portfolioExpanded: false, weavyExpanded: false, webflowExpanded: false });
@@ -38,6 +39,7 @@ export function DashboardTab({ state, actions }: { state: AppState; actions: Man
     <>
       <div className="datebar">{fmtDate(t0)}</div>
       <h1>Dashboard</h1>
+      <NotionSyncButton actions={actions} />
 
       <div className="card">
         <h2>

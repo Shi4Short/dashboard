@@ -1,7 +1,7 @@
 import { neon, type NeonQueryFunction } from "@neondatabase/serverless";
-import type { Deal, FinanceEntry, LogEntry, Milestone, Project, Sub, Task, WeekGoal } from "./types";
+import type { Deal, FinanceEntry, LogEntry, Milestone, NotionGoalTask, Project, Sub, Task, WeekGoal } from "./types";
 import { randomUUID } from "crypto";
-import { addDays, todayStr } from "./utils";
+import { addDays, todayStr, weekStartForDate } from "./utils";
 
 // Lazily created so importing this module never throws when the env var is
 // unset (e.g. during `next build`, which loads route modules without a DB
@@ -30,6 +30,7 @@ export function ensureSchema(): Promise<void> {
         text text NOT NULL,
         week_start text NOT NULL,
         done boolean NOT NULL DEFAULT false,
+        notion_page_id text UNIQUE,
         created_at timestamptz NOT NULL DEFAULT now()
       )`;
       await sql`CREATE TABLE IF NOT EXISTS tasks (
@@ -42,6 +43,7 @@ export function ensureSchema(): Promise<void> {
         from_calendar boolean NOT NULL DEFAULT false,
         push_count integer NOT NULL DEFAULT 0,
         goal_id text REFERENCES week_goals(id) ON DELETE SET NULL,
+        notion_page_id text UNIQUE,
         created_at timestamptz NOT NULL DEFAULT now()
       )`;
       await sql`CREATE TABLE IF NOT EXISTS deals (
@@ -111,6 +113,7 @@ export function rowToTask(r: Record<string, unknown>): Task {
     time: r.time as string,
     done: r.done as boolean,
     fromCalendar: r.from_calendar as boolean,
+    fromNotion: r.notion_page_id != null,
     pushCount: Number(r.push_count),
     goalId: (r.goal_id as string | null) ?? null,
   };
@@ -179,6 +182,7 @@ export function rowToWeekGoal(r: Record<string, unknown>): WeekGoal {
     text: r.text as string,
     weekStart: r.week_start as string,
     done: r.done as boolean,
+    fromNotion: r.notion_page_id != null,
   };
 }
 
@@ -237,4 +241,54 @@ export async function seedIfNeeded(): Promise<void> {
 
   await sql`INSERT INTO settings (key, value) VALUES ('seeded', 'true')
     ON CONFLICT (key) DO NOTHING`;
+}
+
+/**
+ * One-way import from Notion's "Goals & Tasks" database into the existing
+ * tasks/week_goals tables, keyed on notion_page_id. Notion owns title/date/
+ * notes on every sync; `done` only ever moves false -> true from Notion,
+ * never the reverse, so checking something off locally is never clobbered
+ * by a stale "Not started" still sitting in Notion (this app never writes
+ * back to Notion). Items without a date can't be placed on the
+ * date-based Today/Week/Month grids, so they're skipped.
+ */
+export async function syncNotionGoalsAndTasks(
+  items: NotionGoalTask[]
+): Promise<{ tasksSynced: number; goalsSynced: number; skipped: number }> {
+  await ensureSchema();
+  let tasksSynced = 0;
+  let goalsSynced = 0;
+  let skipped = 0;
+
+  for (const item of items) {
+    if (!item.name.trim() || !item.date) {
+      skipped++;
+      continue;
+    }
+
+    if (item.period === "Weekly") {
+      const weekStart = weekStartForDate(item.date);
+      await sql`
+        INSERT INTO week_goals (id, text, week_start, done, notion_page_id)
+        VALUES (${randomUUID()}, ${item.name}, ${weekStart}, ${item.done}, ${item.id})
+        ON CONFLICT (notion_page_id) DO UPDATE
+        SET text = EXCLUDED.text,
+            week_start = EXCLUDED.week_start,
+            done = week_goals.done OR EXCLUDED.done
+      `;
+      goalsSynced++;
+    } else {
+      await sql`
+        INSERT INTO tasks (id, title, category, date, time, done, from_calendar, notion_page_id)
+        VALUES (${randomUUID()}, ${item.name}, 'personal', ${item.date}, '', ${item.done}, false, ${item.id})
+        ON CONFLICT (notion_page_id) DO UPDATE
+        SET title = EXCLUDED.title,
+            date = EXCLUDED.date,
+            done = tasks.done OR EXCLUDED.done
+      `;
+      tasksSynced++;
+    }
+  }
+
+  return { tasksSynced, goalsSynced, skipped };
 }

@@ -31,6 +31,11 @@ export function useManifestState() {
   const [loaded, setLoaded] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
+  const reloadState = useCallback(async () => {
+    const s = await api<AppState>("/api/state");
+    setState(s);
+  }, []);
+
   useEffect(() => {
     api<AppState>("/api/state")
       .then((s) => setState(s))
@@ -225,6 +230,15 @@ export function useManifestState() {
     await api(`/api/week-goals/${id}`, { method: "PATCH", body: JSON.stringify({ done: nextDone }) }).catch(() => {});
   }, []);
 
+  const syncFromNotion = useCallback(async () => {
+    const result = await api<{ tasksSynced: number; goalsSynced: number; skipped: number }>(
+      "/api/notion/sync-tasks",
+      { method: "POST" }
+    );
+    await reloadState();
+    return result;
+  }, [reloadState]);
+
   const deleteWeekGoal = useCallback(async (id: string) => {
     setState((s) => ({
       ...s,
@@ -261,6 +275,7 @@ export function useManifestState() {
       addWeekGoal,
       toggleWeekGoalDone,
       deleteWeekGoal,
+      syncFromNotion,
     },
   };
 }

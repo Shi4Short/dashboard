@@ -49,6 +49,27 @@ The Dashboard's "Art Direction Networking" card is a read-only sync of the Notio
 Without `NOTION_TOKEN` set, the card shows "Not connected" instead of breaking the rest of the dashboard — unlike
 Postgres, this integration is optional per the build brief.
 
+### Goals & Tasks import (one-way, manual)
+
+The "Sync from Notion" button on the Dashboard pulls Notion's "Goals & Tasks" database (Name / Date / Period:
+Daily-Weekly-Monthly-Quarterly / Notes / Status) directly into the same `tasks` and `week_goals` tables the
+dashboard already uses — "Weekly" items become week goals, everything else becomes a task dated on its Notion
+date. Items with no date can't be placed on the date-based grids and are skipped (reported in the sync result).
+
+This is one-way and manual on purpose, matching the same "review before it touches Notion" rule as the Networking
+card:
+- Notion always overwrites title/date/notes on sync — it's the planning source of truth.
+- `done` only ever moves false → true from Notion, never the reverse, so checking something off in the dashboard
+  can't get silently undone by a stale "Not started" still sitting in Notion — this app never writes back to
+  Notion, full stop.
+- Sync only runs when you click the button, not on every page load, so a slow/down Notion API can't affect normal
+  dashboard use.
+
+Rows pulled in this way carry `fromNotion: true` and render a small "📓 notion" badge (`notion_page_id` is the
+upsert key, stored server-side only — it's not part of the client-facing `Task`/`WeekGoal` shape). Reuses
+`NOTION_TOKEN`; needs the database shared with the same integration as Networking.
+`NOTION_GOALS_TASKS_DATABASE_ID` only needs setting if syncing a different database.
+
 ## What's not here yet
 
 Google Calendar, Gmail, and PayPal integrations are intentionally out of scope for this pass — see the build

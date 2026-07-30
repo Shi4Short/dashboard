@@ -29,6 +29,7 @@ export interface Task {
   time: string; // HH:MM or ''
   done: boolean;
   fromCalendar: boolean;
+  fromNotion: boolean;
   pushCount: number;
   goalId: string | null;
 }
@@ -82,6 +83,19 @@ export interface WeekGoal {
   id: string;
   text: string;
   weekStart: string; // YYYY-MM-DD, Sunday
+  done: boolean;
+  fromNotion: boolean;
+}
+
+export const NOTION_PERIODS = ["Daily", "Weekly", "Monthly", "Quarterly"] as const;
+export type NotionPeriod = (typeof NOTION_PERIODS)[number];
+
+export interface NotionGoalTask {
+  id: string;
+  name: string;
+  date: string | null;
+  period: NotionPeriod | "";
+  notes: string;
   done: boolean;
 }
 

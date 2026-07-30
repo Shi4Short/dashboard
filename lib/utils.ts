@@ -34,6 +34,12 @@ export function money(n: number | undefined | null): string {
   return "$" + Number(n || 0).toLocaleString("en-US", { minimumFractionDigits: 2, maximumFractionDigits: 2 });
 }
 
+export function weekStartForDate(date: string): string {
+  const d = new Date(date + "T00:00:00");
+  d.setDate(d.getDate() - d.getDay());
+  return dateStr(d.getFullYear(), d.getMonth(), d.getDate());
+}
+
 export function weekDaysFor(offset: number): string[] {
   const t0 = todayStr();
   const base = new Date(t0 + "T00:00:00");

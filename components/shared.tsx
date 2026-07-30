@@ -27,6 +27,11 @@ export function TaskRow({
           📅 cal
         </span>
       ) : null}
+      {task.fromNotion ? (
+        <span className="tag" style={{ background: "rgba(201,161,90,.15)", color: "var(--gold)" }}>
+          📓 notion
+        </span>
+      ) : null}
       {task.time ? <span className="time">{task.time}</span> : null}
       <span className="title">{task.title}</span>
       {task.pushCount ? (
@@ -223,6 +228,11 @@ export function WeekGoalsList({
                 >
                   {g.text}
                 </span>
+                {g.fromNotion ? (
+                  <span className="tag" style={{ background: "rgba(201,161,90,.15)", color: "var(--gold)" }}>
+                    📓 notion
+                  </span>
+                ) : null}
                 <span style={{ fontSize: "11px", color: "var(--muted)" }}>{isOpen ? "▾" : "▸"}</span>
                 <button
                   className="smallx"

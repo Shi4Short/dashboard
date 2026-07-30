@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
-import { ensureSchema, rowToTask, sql } from "@/lib/db";
+import { ensureSchema, logCompletion, rowToTask, sql } from "@/lib/db";
 
 export async function PATCH(request: NextRequest, { params }: { params: Promise<{ id: string }> }) {
   await ensureSchema();
@@ -7,8 +7,10 @@ export async function PATCH(request: NextRequest, { params }: { params: Promise<
   const body = await request.json();
 
   if (typeof body.done === "boolean") {
+    const [existing] = await sql`SELECT done FROM tasks WHERE id = ${id}`;
     const rows = await sql`UPDATE tasks SET done = ${body.done} WHERE id = ${id} RETURNING *`;
     if (!rows.length) return NextResponse.json({ error: "not found" }, { status: 404 });
+    if (body.done && !existing?.done) await logCompletion(rows[0].title as string);
     return NextResponse.json(rowToTask(rows[0]));
   }
   if (typeof body.date === "string") {

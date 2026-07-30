@@ -43,20 +43,13 @@ export function useManifestState() {
       .finally(() => setLoaded(true));
   }, []);
 
-  // Best-effort: a failed evidence log shouldn't block the completion toggle
-  // itself, so this swallows its own errors rather than propagating them.
-  const logCompletion = useCallback(async (text: string) => {
-    if (!text.trim()) return;
-    try {
-      const entry = await api<AppState["log"][number]>("/api/log", {
-        method: "POST",
-        body: JSON.stringify({ text }),
-      });
-      setState((s) => ({ ...s, log: [entry, ...s.log] }));
-    } catch {
-      // ignore
-    }
-  }, []);
+  // The actual Evidence entry is created server-side (see lib/db.ts's
+  // logCompletion, called from the PATCH routes) so it fires no matter what
+  // client hits the API. This just refreshes local state afterward to pick
+  // that entry up — a second client-side POST here would duplicate it.
+  const refreshAfterCompletion = useCallback(() => {
+    reloadState().catch(() => {});
+  }, [reloadState]);
 
   const addTask = useCallback(
     async (title: string, category: Category, date: string, time: string, goalId: string | null = null) => {
@@ -73,20 +66,18 @@ export function useManifestState() {
   const toggleTask = useCallback(
     async (id: string) => {
       let nextDone = false;
-      let title = "";
       setState((s) => ({
         ...s,
         tasks: s.tasks.map((t) => {
           if (t.id !== id) return t;
           nextDone = !t.done;
-          title = t.title;
           return { ...t, done: nextDone };
         }),
       }));
       await api(`/api/tasks/${id}`, { method: "PATCH", body: JSON.stringify({ done: nextDone }) }).catch(() => {});
-      if (nextDone) logCompletion(title);
+      if (nextDone) refreshAfterCompletion();
     },
-    [logCompletion]
+    [refreshAfterCompletion]
   );
 
   const deleteTask = useCallback(async (id: string) => {
@@ -142,20 +133,18 @@ export function useManifestState() {
   const updateProjectStatus = useCallback(
     async (id: string, status: string) => {
       let justCompleted = false;
-      let name = "";
       setState((s) => ({
         ...s,
         projects: s.projects.map((p) => {
           if (p.id !== id) return p;
           justCompleted = status === "done" && p.status !== "done";
-          name = p.name;
           return { ...p, status: status as (typeof p)["status"] };
         }),
       }));
       await api(`/api/projects/${id}`, { method: "PATCH", body: JSON.stringify({ status }) }).catch(() => {});
-      if (justCompleted) logCompletion(`Completed: ${name}`);
+      if (justCompleted) refreshAfterCompletion();
     },
-    [logCompletion]
+    [refreshAfterCompletion]
   );
 
   const deleteProject = useCallback(async (id: string) => {
@@ -215,12 +204,10 @@ export function useManifestState() {
   const toggleMilestone = useCallback(
     async (track: MilestoneTrack, id: string) => {
       let nextDone = false;
-      let title = "";
       setState((s) => {
         const items = s.milestones[track].map((m) => {
           if (m.id === id) {
             nextDone = !m.done;
-            title = m.title;
             return { ...m, done: nextDone };
           }
           return m;
@@ -230,12 +217,9 @@ export function useManifestState() {
       await api(`/api/milestones/${id}`, { method: "PATCH", body: JSON.stringify({ done: nextDone }) }).catch(
         () => {}
       );
-      if (nextDone) {
-        const trackLabel = track === "weavy" ? "Weavy" : "Webflow";
-        logCompletion(`${trackLabel} milestone: ${title}`);
-      }
+      if (nextDone) refreshAfterCompletion();
     },
-    [logCompletion]
+    [refreshAfterCompletion]
   );
 
   const deleteMilestone = useCallback(async (track: MilestoneTrack, id: string) => {
@@ -263,22 +247,20 @@ export function useManifestState() {
   const toggleWeekGoalDone = useCallback(
     async (id: string) => {
       let nextDone = false;
-      let text = "";
       setState((s) => ({
         ...s,
         weekGoals: s.weekGoals.map((g) => {
           if (g.id !== id) return g;
           nextDone = !g.done;
-          text = g.text;
           return { ...g, done: nextDone };
         }),
       }));
       await api(`/api/week-goals/${id}`, { method: "PATCH", body: JSON.stringify({ done: nextDone }) }).catch(
         () => {}
       );
-      if (nextDone) logCompletion(`Week goal: ${text}`);
+      if (nextDone) refreshAfterCompletion();
     },
-    [logCompletion]
+    [refreshAfterCompletion]
   );
 
   const syncFromNotion = useCallback(async () => {

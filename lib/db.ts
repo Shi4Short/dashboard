@@ -196,6 +196,19 @@ export function rowToWeekGoal(r: Record<string, unknown>): WeekGoal {
 }
 
 /**
+ * Called by the PATCH routes whenever a task/goal/milestone/project genuinely
+ * transitions to done (never on a no-op re-save of an already-done item),
+ * so every completion shows up in the Evidence log without needing the
+ * end-of-day "Add evidence" step. Lives here rather than in a client hook so
+ * it fires no matter what calls the API — the dashboard UI, a direct API
+ * call, a future integration.
+ */
+export async function logCompletion(text: string): Promise<void> {
+  if (!text.trim()) return;
+  await sql`INSERT INTO log_entries (id, date, text) VALUES (${randomUUID()}, ${todayStr()}, ${text})`;
+}
+
+/**
  * Mirrors the prototype's one-time demo seed (calendar-style tasks + starter
  * deals/portfolio checklist). Runs exactly once, gated by a `settings.seeded`
  * flag, so it doesn't reappear on every load like the original localStorage version did.

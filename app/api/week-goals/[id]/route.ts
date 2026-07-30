@@ -1,12 +1,14 @@
 import { NextRequest, NextResponse } from "next/server";
-import { ensureSchema, rowToWeekGoal, sql } from "@/lib/db";
+import { ensureSchema, logCompletion, rowToWeekGoal, sql } from "@/lib/db";
 
 export async function PATCH(request: NextRequest, { params }: { params: Promise<{ id: string }> }) {
   await ensureSchema();
   const { id } = await params;
   const { done } = await request.json();
+  const [existing] = await sql`SELECT done FROM week_goals WHERE id = ${id}`;
   const rows = await sql`UPDATE week_goals SET done = ${done} WHERE id = ${id} RETURNING *`;
   if (!rows.length) return NextResponse.json({ error: "not found" }, { status: 404 });
+  if (done && !existing?.done) await logCompletion(`Week goal: ${rows[0].text}`);
   return NextResponse.json(rowToWeekGoal(rows[0]));
 }
 

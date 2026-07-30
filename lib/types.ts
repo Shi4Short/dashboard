@@ -85,6 +85,16 @@ export interface WeekGoal {
   done: boolean;
 }
 
+export interface NetworkingContact {
+  id: string;
+  name: string;
+  status: string;
+  platform: string;
+  notes: string;
+  dateContacted: string | null;
+  url: string;
+}
+
 export interface AppState {
   tasks: Task[];
   deals: Deal[];

@@ -35,7 +35,22 @@ Tasks carry a `pushCount` (incremented each time a task is pushed to the next da
 optional `goalId` linking them to a week goal. Week goals are anchored to `weekStart` (the Sunday of that week);
 deleting a goal unlinks its tasks rather than deleting them (`goal_id` is `ON DELETE SET NULL`).
 
+## Notion sync
+
+The Dashboard's "Art Direction Networking" card is a read-only sync of the Notion database of the same name
+(`lib/notion.ts`, `app/api/notion/networking/route.ts`). It needs its own credential, separate from Postgres:
+
+1. Create an internal integration at [notion.so/my-integrations](https://www.notion.so/my-integrations) with only
+   "Read content" enabled.
+2. Share the database with it: database "···" menu → Connections → add the integration.
+3. Set `NOTION_TOKEN` in Vercel (Settings → Environment Variables). `NOTION_NETWORKING_DATABASE_ID` only needs
+   setting if syncing a different database — it defaults to the one from the build brief.
+
+Without `NOTION_TOKEN` set, the card shows "Not connected" instead of breaking the rest of the dashboard — unlike
+Postgres, this integration is optional per the build brief.
+
 ## What's not here yet
 
-Google Calendar, Notion, Gmail, and PayPal integrations are intentionally out of scope for this pass — see
-the build brief. This is the plain CRUD version deployed first, integrations layer on top of it next.
+Google Calendar, Gmail, and PayPal integrations are intentionally out of scope for this pass — see the build
+brief. Notion is wired up read-only; writing back to Notion is explicitly out of scope (the brief calls for a
+review step before anything gets pushed there, which doesn't exist yet).

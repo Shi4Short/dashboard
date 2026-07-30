@@ -5,6 +5,7 @@ import type { ManifestActions } from "@/lib/useManifestState";
 import { STAGES, type AppState } from "@/lib/types";
 import { fmtDate, money, todayStr, weekDaysFor } from "@/lib/utils";
 import { AddWeekGoalRow, WeekGoalsList, WeekSquares } from "./shared";
+import { NotionNetworkingCard } from "./NotionNetworkingCard";
 
 export function DashboardTab({ state, actions }: { state: AppState; actions: ManifestActions }) {
   const [ui, setUi] = useState({ portfolioExpanded: false, weavyExpanded: false, webflowExpanded: false });
@@ -189,6 +190,8 @@ export function DashboardTab({ state, actions }: { state: AppState; actions: Man
           </button>
         </div>
       </div>
+
+      <NotionNetworkingCard />
 
       <div className="grid3">
         <div className="card">

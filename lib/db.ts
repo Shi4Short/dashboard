@@ -199,6 +199,18 @@ export function rowToWeekGoal(r: Record<string, unknown>): WeekGoal {
   };
 }
 
+export async function getSetting(key: string): Promise<string | null> {
+  await ensureSchema();
+  const rows = await sql`SELECT value FROM settings WHERE key = ${key}`;
+  return rows.length ? (rows[0].value as string) : null;
+}
+
+export async function setSetting(key: string, value: string): Promise<void> {
+  await ensureSchema();
+  await sql`INSERT INTO settings (key, value) VALUES (${key}, ${value})
+    ON CONFLICT (key) DO UPDATE SET value = EXCLUDED.value`;
+}
+
 /**
  * Called by the PATCH routes whenever a task/goal/milestone/project genuinely
  * transitions to done (never on a no-op re-save of an already-done item),

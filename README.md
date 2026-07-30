@@ -76,8 +76,30 @@ that integration needs "Update content" enabled too, not just "Read content" (No
 your integration → Capabilities). `NOTION_GOALS_TASKS_DATABASE_ID` only needs setting if syncing a different
 database.
 
+## Google Calendar (read-only)
+
+The Dashboard's Calendar card shows upcoming events via OAuth, not an API key — Calendar has no equivalent to
+Notion's internal-integration secret, since it's tied to your personal Google account rather than a workspace:
+
+1. In Google Cloud Console → APIs & Services → Credentials, create an OAuth 2.0 Client ID of type "Web
+   application" (named e.g. "Personal Dashboard").
+2. Add `<origin>/api/auth/google/callback` under Authorized redirect URIs for every origin you'll use this from —
+   at minimum the production domain, plus `http://localhost:3000/...` for local dev. Preview deployments get a
+   random URL per push, so OAuth won't work there unless that exact URL is also registered.
+3. If the OAuth consent screen is in "Testing" mode (likely, for a personal project), add your own Google account
+   under Test users, or Google blocks the login before it reaches the app.
+4. Set `GOOGLE_CLIENT_ID` and `GOOGLE_CLIENT_SECRET` in Vercel — from the OAuth client's detail page, not the
+   truncated preview in the credentials list.
+5. Click "Connect Google Calendar" on the Dashboard once. The resulting refresh token is stored server-side (the
+   `settings` table, `lib/google-calendar.ts`) — no env var holds it, since it's generated per-connection rather
+   than created upfront like a Notion secret.
+
+Read-only (`calendar.readonly` scope) — this app never creates, edits, or deletes events. `/api/auth/google` sets
+a short-lived `state` cookie and checks it in the callback for CSRF protection; there's no session/login system
+otherwise, since this is a single-user app.
+
 ## What's not here yet
 
-Google Calendar, Gmail, and PayPal integrations are intentionally out of scope for this pass — see the build
-brief. The Networking card stays read-only; Goals & Tasks status can sync both ways (see above), but this app
-still never writes actual content (titles, notes, new pages) to Notion.
+Gmail and PayPal integrations are intentionally out of scope for this pass — see the build brief. Of the Notion
+integrations, the Networking card stays read-only and Goals & Tasks syncs status both ways (see above); this app
+still never writes actual content (titles, notes, new pages) to Notion. Google Calendar is read-only end to end.

@@ -7,6 +7,7 @@ import { fmtDate, money, todayStr, weekDaysFor } from "@/lib/utils";
 import { AddWeekGoalRow, WeekGoalsList, WeekSquares } from "./shared";
 import { NotionNetworkingCard } from "./NotionNetworkingCard";
 import { NotionSyncButton } from "./NotionSyncButton";
+import { GoogleCalendarCard } from "./GoogleCalendarCard";
 
 export function DashboardTab({ state, actions }: { state: AppState; actions: ManifestActions }) {
   const [ui, setUi] = useState({ portfolioExpanded: false, weavyExpanded: false, webflowExpanded: false });
@@ -194,6 +195,8 @@ export function DashboardTab({ state, actions }: { state: AppState; actions: Man
       </div>
 
       <NotionNetworkingCard />
+
+      <GoogleCalendarCard />
 
       <div className="grid3">
         <div className="card">

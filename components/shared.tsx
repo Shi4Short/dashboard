@@ -3,7 +3,7 @@
 import { useState } from "react";
 import type { ManifestActions } from "@/lib/useManifestState";
 import { CATEGORIES, CATEGORY_LABEL, type AppState, type Category, type Task } from "@/lib/types";
-import { fmtHour, todayStr } from "@/lib/utils";
+import { fmtDate, fmtHour, todayStr } from "@/lib/utils";
 
 export function TaskRow({
   task,
@@ -92,57 +92,90 @@ export function Timeline({ dayTasks }: { dayTasks: Task[] }) {
   );
 }
 
-export function WeekSquares({ days, compact, state }: { days: string[]; compact: boolean; state: AppState }) {
+export function WeekSquares({
+  days,
+  compact,
+  state,
+  actions,
+}: {
+  days: string[];
+  compact: boolean;
+  state: AppState;
+  actions: ManifestActions;
+}) {
   const t0 = todayStr();
   const sz = compact ? "70px" : "140px";
+  const [selectedDay, setSelectedDay] = useState<string | null>(null);
+
+  const dayTasksFor = (ds: string) =>
+    state.tasks.filter((t) => t.date === ds).sort((a, b) => (a.time || "99").localeCompare(b.time || "99"));
 
   return (
-    <div className="grid3" style={{ gridTemplateColumns: "repeat(7,1fr)", gap: compact ? "6px" : "8px" }}>
-      {days.map((ds) => {
-        const dayTasks = state.tasks
-          .filter((t) => t.date === ds)
-          .sort((a, b) => (a.time || "99").localeCompare(b.time || "99"));
-        const done = dayTasks.filter((t) => t.done).length;
-        const weekday = new Date(ds + "T00:00:00").toLocaleDateString("en-US", { weekday: "short" });
+    <>
+      <div className="grid3" style={{ gridTemplateColumns: "repeat(7,1fr)", gap: compact ? "6px" : "8px" }}>
+        {days.map((ds) => {
+          const dayTasks = dayTasksFor(ds);
+          const done = dayTasks.filter((t) => t.done).length;
+          const weekday = new Date(ds + "T00:00:00").toLocaleDateString("en-US", { weekday: "short" });
 
-        return (
-          <div className={`calcell ${ds === t0 ? "today" : ""}`} style={{ minHeight: sz, cursor: "default" }} key={ds}>
-            <div className="daynum">
-              {weekday} {ds.slice(8, 10)}
+          return (
+            <div
+              className={`calcell ${ds === t0 ? "today" : ""} ${ds === selectedDay ? "selected" : ""}`}
+              style={{ minHeight: sz }}
+              key={ds}
+              onClick={() => setSelectedDay((cur) => (cur === ds ? null : ds))}
+            >
+              <div className="daynum">
+                {weekday} {ds.slice(8, 10)}
+              </div>
+              {dayTasks.length ? (
+                <div style={{ fontSize: "10px", color: "var(--muted)", margin: "4px 0" }}>
+                  {done}/{dayTasks.length} done
+                </div>
+              ) : null}
+              {!compact
+                ? dayTasks.slice(0, 4).map((t) => (
+                    <div
+                      key={t.id}
+                      style={{
+                        fontSize: "10.5px",
+                        padding: "2px 0",
+                        textDecoration: t.done ? "line-through" : "none",
+                        color: t.done ? "var(--muted)" : undefined,
+                      }}
+                    >
+                      {t.title.slice(0, 22)}
+                      {t.title.length > 22 ? "…" : ""}
+                    </div>
+                  ))
+                : null}
+              {!compact && dayTasks.length > 4 ? (
+                <div style={{ fontSize: "10px", color: "var(--muted)" }}>+{dayTasks.length - 4} more</div>
+              ) : null}
+              {!compact && !dayTasks.length ? (
+                <div className="empty" style={{ fontSize: "10.5px" }}>
+                  —
+                </div>
+              ) : null}
             </div>
-            {dayTasks.length ? (
-              <div style={{ fontSize: "10px", color: "var(--muted)", margin: "4px 0" }}>
-                {done}/{dayTasks.length} done
-              </div>
-            ) : null}
-            {!compact
-              ? dayTasks.slice(0, 4).map((t) => (
-                  <div
-                    key={t.id}
-                    style={{
-                      fontSize: "10.5px",
-                      padding: "2px 0",
-                      textDecoration: t.done ? "line-through" : "none",
-                      color: t.done ? "var(--muted)" : undefined,
-                    }}
-                  >
-                    {t.title.slice(0, 22)}
-                    {t.title.length > 22 ? "…" : ""}
-                  </div>
-                ))
-              : null}
-            {!compact && dayTasks.length > 4 ? (
-              <div style={{ fontSize: "10px", color: "var(--muted)" }}>+{dayTasks.length - 4} more</div>
-            ) : null}
-            {!compact && !dayTasks.length ? (
-              <div className="empty" style={{ fontSize: "10.5px" }}>
-                —
-              </div>
-            ) : null}
+          );
+        })}
+      </div>
+      {selectedDay ? (
+        <div className="milestonelist">
+          <div className="checkin-q" style={{ marginBottom: "6px" }}>
+            {fmtDate(selectedDay)}
           </div>
-        );
-      })}
-    </div>
+          {dayTasksFor(selectedDay).length ? (
+            dayTasksFor(selectedDay).map((t) => (
+              <TaskRow key={t.id} task={t} onToggle={actions.toggleTask} onDelete={actions.deleteTask} />
+            ))
+          ) : (
+            <div className="empty">Nothing scheduled.</div>
+          )}
+        </div>
+      ) : null}
+    </>
   );
 }
 

@@ -45,7 +45,7 @@ export function DashboardTab({ state, actions }: { state: AppState; actions: Man
             {fmtDate(dashWeekDays[0])} – {fmtDate(dashWeekDays[6])}
           </span>
         </h2>
-        <WeekSquares days={dashWeekDays} compact state={state} />
+        <WeekSquares days={dashWeekDays} compact state={state} actions={actions} />
         <div className="milestonelist">
           <WeekGoalsList weekStart={dashWeekStart} state={state} actions={actions} />
           <AddWeekGoalRow weekStart={dashWeekStart} actions={actions} />

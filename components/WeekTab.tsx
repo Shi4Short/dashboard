@@ -32,7 +32,7 @@ export function WeekTab({ state, actions }: { state: AppState; actions: Manifest
             Jump to this week
           </button>
         ) : null}
-        <WeekSquares days={days} compact={false} state={state} />
+        <WeekSquares key={weekStart} days={days} compact={false} state={state} actions={actions} />
       </div>
       <div className="card">
         <h2>This Week&apos;s Goals</h2>

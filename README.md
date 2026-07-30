@@ -9,11 +9,14 @@ Postgres instead of browser localStorage so it syncs across devices.
 npm install
 ```
 
-The app reads/writes through Vercel Postgres via `@vercel/postgres`. To run it locally against a real database:
+The app reads/writes through Vercel's Postgres storage (Neon-backed) via `@neondatabase/serverless` — Neon's own
+driver, not `@vercel/postgres` (that package expects a pooled connection string in a shape this storage type
+doesn't provide; it throws `invalid_connection_string` against it). To run it locally against a real database:
 
 1. In the Vercel dashboard, attach a Postgres store to this project (Storage → Create Database → Postgres).
-2. Pull the env vars it injects: `vercel env pull .env.local` (or copy them manually into `.env.local` — see
-   `.env.local.example` for the expected keys).
+2. Pull the env vars it injects: `vercel env pull .env.local --environment=production` (the `development`
+   environment doesn't get them by default — see `.env.local.example` for the expected keys if setting them
+   manually).
 3. `npm run dev` and open http://localhost:3000. On first load the app seeds itself with the starter demo data
    (matching the original prototype's seed set) and won't re-seed after that.
 

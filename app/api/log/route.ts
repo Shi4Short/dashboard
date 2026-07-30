@@ -1,7 +1,6 @@
 import { randomUUID } from "crypto";
-import { sql } from "@vercel/postgres";
 import { NextRequest, NextResponse } from "next/server";
-import { ensureSchema, rowToLogEntry } from "@/lib/db";
+import { ensureSchema, rowToLogEntry, sql } from "@/lib/db";
 import { todayStr } from "@/lib/utils";
 
 export async function POST(request: NextRequest) {
@@ -11,7 +10,7 @@ export async function POST(request: NextRequest) {
     return NextResponse.json({ error: "text is required" }, { status: 400 });
   }
   const id = randomUUID();
-  const { rows } = await sql`
+  const rows = await sql`
     INSERT INTO log_entries (id, date, text)
     VALUES (${id}, ${todayStr()}, ${text.trim()})
     RETURNING *`;

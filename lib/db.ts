@@ -1,7 +1,24 @@
-import { sql } from "@vercel/postgres";
+import { neon, type NeonQueryFunction } from "@neondatabase/serverless";
 import type { Deal, FinanceEntry, LogEntry, Milestone, Project, Sub, Task, WeekGoal } from "./types";
 import { randomUUID } from "crypto";
 import { addDays, todayStr } from "./utils";
+
+// Lazily created so importing this module never throws when the env var is
+// unset (e.g. during `next build`, which loads route modules without a DB
+// attached). The connection string works whether it's Vercel Postgres's
+// pooled or unpooled form — Neon's HTTP driver doesn't care.
+let cachedSql: NeonQueryFunction<false, false> | undefined;
+
+export function sql(strings: TemplateStringsArray, ...values: unknown[]) {
+  if (!cachedSql) {
+    const connectionString = process.env.POSTGRES_URL || process.env.DATABASE_URL;
+    if (!connectionString) {
+      throw new Error("POSTGRES_URL (or DATABASE_URL) environment variable is not set");
+    }
+    cachedSql = neon(connectionString);
+  }
+  return cachedSql(strings, ...values);
+}
 
 let schemaReady: Promise<void> | null = null;
 
@@ -172,7 +189,7 @@ export function rowToWeekGoal(r: Record<string, unknown>): WeekGoal {
  */
 export async function seedIfNeeded(): Promise<void> {
   await ensureSchema();
-  const { rows } = await sql`SELECT value FROM settings WHERE key = 'seeded'`;
+  const rows = await sql`SELECT value FROM settings WHERE key = 'seeded'`;
   if (rows.length) return;
 
   const t0 = todayStr();

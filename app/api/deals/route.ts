@@ -1,7 +1,6 @@
 import { randomUUID } from "crypto";
-import { sql } from "@vercel/postgres";
 import { NextRequest, NextResponse } from "next/server";
-import { ensureSchema, rowToDeal } from "@/lib/db";
+import { ensureSchema, rowToDeal, sql } from "@/lib/db";
 import { todayStr } from "@/lib/utils";
 
 export async function POST(request: NextRequest) {
@@ -13,7 +12,7 @@ export async function POST(request: NextRequest) {
   }
   const id = randomUUID();
   const date = todayStr();
-  const { rows } = await sql`
+  const rows = await sql`
     INSERT INTO deals (id, brand, stage, date, notes, value)
     VALUES (${id}, ${brand.trim()}, ${stage}, ${date}, '', ${Number(value) || 0})
     RETURNING *`;

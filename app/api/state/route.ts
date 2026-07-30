@@ -1,4 +1,3 @@
-import { sql } from "@vercel/postgres";
 import { NextResponse } from "next/server";
 import {
   rowToDeal,
@@ -10,6 +9,7 @@ import {
   rowToTask,
   rowToWeekGoal,
   seedIfNeeded,
+  sql,
 } from "@/lib/db";
 import type { AppState, MilestoneTrack } from "@/lib/types";
 
@@ -36,27 +36,27 @@ export async function GET() {
     weavy: [],
     webflow: [],
   };
-  for (const row of milestones.rows) {
+  for (const row of milestones) {
     const m = rowToMilestone(row);
     milestonesByTrack[m.track].push(m);
   }
 
   const pitchLogMap: Record<string, number> = {};
-  for (const row of pitchLog.rows) {
+  for (const row of pitchLog) {
     pitchLogMap[row.date as string] = Number(row.count);
   }
 
   const state: AppState = {
-    tasks: tasks.rows.map(rowToTask),
-    deals: deals.rows.map(rowToDeal),
-    projects: projects.rows.map(rowToProject),
+    tasks: tasks.map(rowToTask),
+    deals: deals.map(rowToDeal),
+    projects: projects.map(rowToProject),
     milestones: milestonesByTrack,
-    subs: subs.rows.map(rowToSub),
-    financeEntries: financeEntries.rows.map(rowToFinanceEntry),
+    subs: subs.map(rowToSub),
+    financeEntries: financeEntries.map(rowToFinanceEntry),
     pitchLog: pitchLogMap,
-    log: log.rows.map(rowToLogEntry),
-    weekGoals: weekGoals.rows.map(rowToWeekGoal),
-    q3goals: q3goals.rows[0]?.value ?? "",
+    log: log.map(rowToLogEntry),
+    weekGoals: weekGoals.map(rowToWeekGoal),
+    q3goals: q3goals[0]?.value ?? "",
   };
 
   return NextResponse.json(state);

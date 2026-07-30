@@ -1,12 +1,11 @@
-import { sql } from "@vercel/postgres";
 import { NextRequest, NextResponse } from "next/server";
-import { ensureSchema, rowToMilestone } from "@/lib/db";
+import { ensureSchema, rowToMilestone, sql } from "@/lib/db";
 
 export async function PATCH(request: NextRequest, { params }: { params: Promise<{ id: string }> }) {
   await ensureSchema();
   const { id } = await params;
   const { done } = await request.json();
-  const { rows } = await sql`UPDATE milestones SET done = ${done} WHERE id = ${id} RETURNING *`;
+  const rows = await sql`UPDATE milestones SET done = ${done} WHERE id = ${id} RETURNING *`;
   if (!rows.length) return NextResponse.json({ error: "not found" }, { status: 404 });
   return NextResponse.json(rowToMilestone(rows[0]));
 }

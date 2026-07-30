@@ -1,6 +1,5 @@
-import { sql } from "@vercel/postgres";
 import { NextRequest, NextResponse } from "next/server";
-import { ensureSchema } from "@/lib/db";
+import { ensureSchema, sql } from "@/lib/db";
 
 export async function DELETE(_request: NextRequest, { params }: { params: Promise<{ id: string }> }) {
   await ensureSchema();

@@ -1,7 +1,6 @@
 import { randomUUID } from "crypto";
-import { sql } from "@vercel/postgres";
 import { NextRequest, NextResponse } from "next/server";
-import { ensureSchema, rowToMilestone } from "@/lib/db";
+import { ensureSchema, rowToMilestone, sql } from "@/lib/db";
 
 export async function POST(request: NextRequest) {
   await ensureSchema();
@@ -13,7 +12,7 @@ export async function POST(request: NextRequest) {
     return NextResponse.json({ error: "invalid track" }, { status: 400 });
   }
   const id = randomUUID();
-  const { rows } = await sql`
+  const rows = await sql`
     INSERT INTO milestones (id, track, title, done)
     VALUES (${id}, ${track}, ${title.trim()}, false)
     RETURNING *`;

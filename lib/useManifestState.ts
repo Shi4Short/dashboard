@@ -272,6 +272,12 @@ export function useManifestState() {
     return result;
   }, [reloadState]);
 
+  const syncGoogleCalendar = useCallback(async () => {
+    const result = await api<{ synced: number; skipped: number }>("/api/calendar/sync", { method: "POST" });
+    await reloadState();
+    return result;
+  }, [reloadState]);
+
   const deleteWeekGoal = useCallback(async (id: string) => {
     setState((s) => ({
       ...s,
@@ -309,6 +315,7 @@ export function useManifestState() {
       toggleWeekGoalDone,
       deleteWeekGoal,
       syncFromNotion,
+      syncGoogleCalendar,
     },
   };
 }

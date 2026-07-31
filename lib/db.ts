@@ -1,5 +1,6 @@
 import { neon, type NeonQueryFunction } from "@neondatabase/serverless";
 import type { Deal, FinanceEntry, LogEntry, Milestone, NotionGoalTask, Project, Sub, Task, WeekGoal } from "./types";
+import type { CalendarEvent } from "./google-calendar";
 import { randomUUID } from "crypto";
 import { addDays, todayStr, weekStartForDate } from "./utils";
 
@@ -46,6 +47,7 @@ export function ensureSchema(): Promise<void> {
         goal_id text REFERENCES week_goals(id) ON DELETE SET NULL,
         notion_page_id text UNIQUE,
         notion_done boolean NOT NULL DEFAULT false,
+        google_event_id text UNIQUE,
         created_at timestamptz NOT NULL DEFAULT now()
       )`;
       // CREATE TABLE IF NOT EXISTS is a no-op on tables that already exist in
@@ -58,6 +60,7 @@ export function ensureSchema(): Promise<void> {
       await sql`ALTER TABLE tasks ADD COLUMN IF NOT EXISTS goal_id text REFERENCES week_goals(id) ON DELETE SET NULL`;
       await sql`ALTER TABLE tasks ADD COLUMN IF NOT EXISTS notion_page_id text UNIQUE`;
       await sql`ALTER TABLE tasks ADD COLUMN IF NOT EXISTS notion_done boolean NOT NULL DEFAULT false`;
+      await sql`ALTER TABLE tasks ADD COLUMN IF NOT EXISTS google_event_id text UNIQUE`;
 
       await sql`CREATE TABLE IF NOT EXISTS deals (
         id text PRIMARY KEY,
@@ -352,4 +355,41 @@ export async function syncNotionGoalsAndTasks(
   }
 
   return { tasksSynced, goalsSynced, skipped };
+}
+
+/**
+ * Pulls Google Calendar events into the same tasks table Today/Week/Month
+ * already read from, keyed on google_event_id — same shape as the Notion
+ * import, minus any push-back (Calendar isn't a completion tracker, so
+ * there's nothing to push). `done` is intentionally left out of the SET
+ * clause on conflict so a locally-completed task never gets reset by a
+ * re-sync; it's the same never-downgrade principle as the Notion sync,
+ * simplified to one direction since Calendar has no done state to merge.
+ */
+export async function syncGoogleCalendarEvents(
+  events: CalendarEvent[]
+): Promise<{ synced: number; skipped: number }> {
+  await ensureSchema();
+  let synced = 0;
+  let skipped = 0;
+
+  for (const event of events) {
+    if (!event.title.trim() || !event.start) {
+      skipped++;
+      continue;
+    }
+    const date = event.start.slice(0, 10);
+    const time = event.allDay ? "" : event.start.slice(11, 16);
+    await sql`
+      INSERT INTO tasks (id, title, category, date, time, done, from_calendar, google_event_id)
+      VALUES (${randomUUID()}, ${event.title}, 'personal', ${date}, ${time}, false, true, ${event.id})
+      ON CONFLICT (google_event_id) DO UPDATE
+      SET title = EXCLUDED.title,
+          date = EXCLUDED.date,
+          time = EXCLUDED.time
+    `;
+    synced++;
+  }
+
+  return { synced, skipped };
 }

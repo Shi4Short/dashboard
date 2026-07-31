@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
+import type { ManifestActions } from "@/lib/useManifestState";
 
 interface CalendarEvent {
   id: string;
@@ -24,10 +25,12 @@ function fmtEventTime(ev: CalendarEvent): string {
   });
 }
 
-export function GoogleCalendarCard() {
+export function GoogleCalendarCard({ actions }: { actions: ManifestActions }) {
   const [connected, setConnected] = useState<boolean | null>(null);
   const [events, setEvents] = useState<CalendarEvent[]>([]);
   const [error, setError] = useState<string | null>(null);
+  const [syncStatus, setSyncStatus] = useState<"idle" | "syncing" | "done" | "error">("idle");
+  const [syncMessage, setSyncMessage] = useState("");
 
   useEffect(() => {
     fetch("/api/calendar/events")
@@ -39,6 +42,21 @@ export function GoogleCalendarCard() {
       })
       .catch((e) => setError(e instanceof Error ? e.message : String(e)));
   }, []);
+
+  const handleSync = async () => {
+    setSyncStatus("syncing");
+    try {
+      const result = await actions.syncGoogleCalendar();
+      setSyncStatus("done");
+      setSyncMessage(
+        `${result.synced} event${result.synced === 1 ? "" : "s"} synced to Today/Week/Month` +
+          (result.skipped ? ` (${result.skipped} skipped)` : "")
+      );
+    } catch (e) {
+      setSyncStatus("error");
+      setSyncMessage(e instanceof Error ? e.message : String(e));
+    }
+  };
 
   return (
     <div className="card">
@@ -56,23 +74,39 @@ export function GoogleCalendarCard() {
             Connect Google Calendar
           </button>
         </>
-      ) : events.length ? (
-        events.map((ev) => (
-          <div className="miniitem" key={ev.id}>
-            <span className="name">
-              {ev.url ? (
-                <a href={ev.url} target="_blank" rel="noopener noreferrer" className="linklike">
-                  {ev.title}
-                </a>
-              ) : (
-                ev.title
-              )}
-            </span>
-            <span style={{ fontSize: "11px", color: "var(--muted)" }}>{fmtEventTime(ev)}</span>
-          </div>
-        ))
       ) : (
-        <div className="empty">No upcoming events.</div>
+        <>
+          {events.length ? (
+            events.map((ev) => (
+              <div className="miniitem" key={ev.id}>
+                <span className="name">
+                  {ev.url ? (
+                    <a href={ev.url} target="_blank" rel="noopener noreferrer" className="linklike">
+                      {ev.title}
+                    </a>
+                  ) : (
+                    ev.title
+                  )}
+                </span>
+                <span style={{ fontSize: "11px", color: "var(--muted)" }}>{fmtEventTime(ev)}</span>
+              </div>
+            ))
+          ) : (
+            <div className="empty">No upcoming events.</div>
+          )}
+          <div style={{ display: "flex", alignItems: "center", gap: "10px", marginTop: "12px" }}>
+            <button className="ghost" onClick={handleSync} disabled={syncStatus === "syncing"}>
+              {syncStatus === "syncing" ? "Syncing…" : "Sync to Today/Week/Month"}
+            </button>
+            {syncMessage ? (
+              <span
+                style={{ fontSize: "11.5px", color: syncStatus === "error" ? "var(--danger)" : "var(--muted)" }}
+              >
+                {syncMessage}
+              </span>
+            ) : null}
+          </div>
+        </>
       )}
     </div>
   );

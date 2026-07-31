@@ -196,7 +196,7 @@ export function DashboardTab({ state, actions }: { state: AppState; actions: Man
 
       <NotionNetworkingCard />
 
-      <GoogleCalendarCard />
+      <GoogleCalendarCard actions={actions} />
 
       <div className="grid3">
         <div className="card">

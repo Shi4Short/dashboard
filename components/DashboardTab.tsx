@@ -1,6 +1,6 @@
 "use client";
 
-import Link from "next/link";
+import { useRouter } from "next/navigation";
 import { useState } from "react";
 import type { ManifestActions } from "@/lib/useManifestState";
 import { STAGES, type AppState } from "@/lib/types";
@@ -11,6 +11,7 @@ import { NotionSyncButton } from "./NotionSyncButton";
 import { GoogleCalendarCard } from "./GoogleCalendarCard";
 
 export function DashboardTab({ state, actions }: { state: AppState; actions: ManifestActions }) {
+  const router = useRouter();
   const [ui, setUi] = useState({ portfolioExpanded: false, weavyExpanded: false, webflowExpanded: false });
   const [subName, setSubName] = useState("");
   const [subAmount, setSubAmount] = useState("");
@@ -215,20 +216,31 @@ export function DashboardTab({ state, actions }: { state: AppState; actions: Man
             <div className="milestonelist">
               {portfolioTasks.length ? (
                 portfolioTasks.map((p) => (
-                  <div className="miniitem" key={p.id}>
-                    <span className="name">
-                      <Link href={`/projects/${p.id}`} className="linklike">
-                        {p.name}
-                      </Link>
-                    </span>
-                    <select value={p.status} onChange={(e) => actions.updateProjectStatus(p.id, e.target.value)}>
+                  <div
+                    className="miniitem"
+                    style={{ cursor: "pointer" }}
+                    key={p.id}
+                    onClick={() => router.push(`/projects/${p.id}`)}
+                  >
+                    <span className="name linklike">{p.name}</span>
+                    <select
+                      value={p.status}
+                      onClick={(e) => e.stopPropagation()}
+                      onChange={(e) => actions.updateProjectStatus(p.id, e.target.value)}
+                    >
                       {["active", "waiting", "done"].map((s) => (
                         <option value={s} key={s}>
                           {s}
                         </option>
                       ))}
                     </select>
-                    <button className="smallx" onClick={() => actions.deleteProject(p.id)}>
+                    <button
+                      className="smallx"
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        actions.deleteProject(p.id);
+                      }}
+                    >
                       ×
                     </button>
                   </div>

@@ -41,7 +41,15 @@ export function useManifestState() {
       .then((s) => setState(s))
       .catch((e) => setError(e instanceof Error ? e.message : String(e)))
       .finally(() => setLoaded(true));
-  }, []);
+
+    // Fire-and-forget, after the initial paint rather than blocking it: pull
+    // fresh Calendar events once per page load, then quietly reload state if
+    // anything came in. Errors are swallowed — Calendar not being connected
+    // yet is a completely normal case, not a failure worth surfacing here.
+    api("/api/calendar/sync", { method: "POST" })
+      .then(() => reloadState())
+      .catch(() => {});
+  }, [reloadState]);
 
   // The actual Evidence entry is created server-side (see lib/db.ts's
   // logCompletion, called from the PATCH routes) so it fires no matter what

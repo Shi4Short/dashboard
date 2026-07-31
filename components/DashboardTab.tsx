@@ -42,6 +42,8 @@ export function DashboardTab({ state, actions }: { state: AppState; actions: Man
       <h1>Dashboard</h1>
       <NotionSyncButton actions={actions} />
 
+      <GoogleCalendarCard actions={actions} />
+
       <div className="card">
         <h2>
           Week at a Glance{" "}
@@ -195,8 +197,6 @@ export function DashboardTab({ state, actions }: { state: AppState; actions: Man
       </div>
 
       <NotionNetworkingCard />
-
-      <GoogleCalendarCard actions={actions} />
 
       <div className="grid3">
         <div className="card">

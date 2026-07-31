@@ -2,7 +2,7 @@
 
 import { useState } from "react";
 import type { ManifestActions } from "@/lib/useManifestState";
-import { CATEGORIES, CATEGORY_LABEL, type AppState, type Category, type Task } from "@/lib/types";
+import { CATEGORIES, CATEGORY_LABEL, type AppState, type Category, type ProjectMilestone, type Task } from "@/lib/types";
 import { fmtDate, fmtHour, todayStr } from "@/lib/utils";
 
 export function TaskRow({
@@ -303,6 +303,160 @@ export function AddWeekGoalRow({ weekStart, actions }: { weekStart: string; acti
         }}
       >
         Add goal
+      </button>
+    </div>
+  );
+}
+
+/**
+ * One equal-width segment per milestone. Each segment fills based on that
+ * specific milestone's own linked tasks (done/total), reaching 100% exactly
+ * when the milestone completes — not a single bar for the whole project.
+ */
+export function ProjectProgressBar({ milestones, tasks }: { milestones: ProjectMilestone[]; tasks: Task[] }) {
+  if (!milestones.length) return null;
+  return (
+    <div style={{ display: "flex", gap: "6px" }}>
+      {milestones.map((m) => {
+        const linked = tasks.filter((t) => t.projectMilestoneId === m.id);
+        const pct = m.done ? 100 : linked.length ? Math.round((linked.filter((t) => t.done).length / linked.length) * 100) : 0;
+        return (
+          <div
+            key={m.id}
+            title={`${m.title} — ${pct}%`}
+            style={{ flex: 1, height: "12px", background: "var(--surface-2)", borderRadius: "999px", overflow: "hidden" }}
+          >
+            <div style={{ width: `${pct}%`, height: "100%", background: "var(--gold)", borderRadius: "999px" }} />
+          </div>
+        );
+      })}
+    </div>
+  );
+}
+
+export function ProjectMilestonesList({
+  projectId,
+  state,
+  actions,
+}: {
+  projectId: string;
+  state: AppState;
+  actions: ManifestActions;
+}) {
+  const [expanded, setExpanded] = useState<Record<string, boolean>>({});
+  const [drafts, setDrafts] = useState<Record<string, { title: string; date: string; cat: Category }>>({});
+
+  const milestones = state.projectMilestones.filter((m) => m.projectId === projectId);
+
+  const draftFor = (milestoneId: string) =>
+    drafts[milestoneId] ?? { title: "", date: todayStr(), cat: "content" as Category };
+  const setDraft = (milestoneId: string, patch: Partial<{ title: string; date: string; cat: Category }>) => {
+    setDrafts((d) => ({ ...d, [milestoneId]: { ...draftFor(milestoneId), ...patch } }));
+  };
+
+  return (
+    <>
+      {milestones.length ? (
+        milestones.map((m) => {
+          const isOpen = !!expanded[m.id];
+          const draft = draftFor(m.id);
+          const linkedTasks = state.tasks.filter((t) => t.projectMilestoneId === m.id);
+          return (
+            <div className="miniitem" style={{ alignItems: "flex-start", flexDirection: "column" }} key={m.id}>
+              <div
+                style={{ display: "flex", alignItems: "center", gap: "8px", width: "100%", cursor: "pointer" }}
+                onClick={() => setExpanded((e) => ({ ...e, [m.id]: !e[m.id] }))}
+              >
+                <input
+                  type="checkbox"
+                  checked={m.done}
+                  onClick={(e) => e.stopPropagation()}
+                  onChange={() => actions.toggleProjectMilestone(m.id)}
+                />
+                <span
+                  className="name"
+                  style={{ textDecoration: m.done ? "line-through" : "none", color: m.done ? "var(--muted)" : undefined }}
+                >
+                  {m.title}
+                </span>
+                <span style={{ fontSize: "11px", color: "var(--muted)" }}>
+                  {linkedTasks.filter((t) => t.done).length}/{linkedTasks.length}
+                </span>
+                <span style={{ fontSize: "11px", color: "var(--muted)" }}>{isOpen ? "▾" : "▸"}</span>
+                <button
+                  className="smallx"
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    actions.deleteProjectMilestone(m.id);
+                  }}
+                >
+                  ×
+                </button>
+              </div>
+              {isOpen ? (
+                <div style={{ width: "100%", margin: "8px 0 4px 24px" }}>
+                  {linkedTasks.length ? (
+                    linkedTasks.map((t) => (
+                      <TaskRow key={t.id} task={t} onToggle={actions.toggleTask} onDelete={actions.deleteTask} />
+                    ))
+                  ) : (
+                    <div className="empty">No tasks linked yet.</div>
+                  )}
+                  <div className="addrow">
+                    <input
+                      type="text"
+                      placeholder="Add a task under this milestone..."
+                      value={draft.title}
+                      onChange={(e) => setDraft(m.id, { title: e.target.value })}
+                    />
+                    <input type="date" value={draft.date} onChange={(e) => setDraft(m.id, { date: e.target.value })} />
+                    <select value={draft.cat} onChange={(e) => setDraft(m.id, { cat: e.target.value as Category })}>
+                      {CATEGORIES.map((c) => (
+                        <option value={c} key={c}>
+                          {CATEGORY_LABEL[c]}
+                        </option>
+                      ))}
+                    </select>
+                    <button
+                      className="primary"
+                      onClick={() => {
+                        actions.addTask(draft.title, draft.cat, draft.date || todayStr(), "", null, m.id);
+                        setDraft(m.id, { title: "" });
+                      }}
+                    >
+                      Add
+                    </button>
+                  </div>
+                </div>
+              ) : null}
+            </div>
+          );
+        })
+      ) : (
+        <div className="empty">No milestones yet.</div>
+      )}
+    </>
+  );
+}
+
+export function AddProjectMilestoneRow({ projectId, actions }: { projectId: string; actions: ManifestActions }) {
+  const [title, setTitle] = useState("");
+  return (
+    <div className="addrow">
+      <input
+        type="text"
+        placeholder="Add a milestone for this project..."
+        value={title}
+        onChange={(e) => setTitle(e.target.value)}
+      />
+      <button
+        className="primary"
+        onClick={() => {
+          actions.addProjectMilestone(projectId, title);
+          setTitle("");
+        }}
+      >
+        Add milestone
       </button>
     </div>
   );

@@ -32,6 +32,8 @@ export interface Task {
   fromNotion: boolean;
   pushCount: number;
   goalId: string | null;
+  projectId: string | null;
+  projectMilestoneId: string | null;
 }
 
 export interface Deal {
@@ -54,6 +56,16 @@ export interface Project {
 export interface Milestone {
   id: string;
   track: MilestoneTrack;
+  title: string;
+  done: boolean;
+}
+
+/** Distinct from Milestone (which is the fixed Weavy/Webflow tracks) — this
+ * belongs to an arbitrary project, ordered, and drives that project's
+ * segmented progress bar. */
+export interface ProjectMilestone {
+  id: string;
+  projectId: string;
   title: string;
   done: boolean;
 }
@@ -97,6 +109,7 @@ export interface NotionGoalTask {
   period: NotionPeriod | "";
   notes: string;
   done: boolean;
+  projectName: string | null;
 }
 
 export interface NetworkingContact {
@@ -114,6 +127,7 @@ export interface AppState {
   deals: Deal[];
   projects: Project[];
   milestones: Record<MilestoneTrack, Milestone[]>;
+  projectMilestones: ProjectMilestone[];
   subs: Sub[];
   financeEntries: FinanceEntry[];
   pitchLog: Record<string, number>;

@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
-import { ensureSchema, logCompletion, rowToTask, sql } from "@/lib/db";
+import { checkMilestoneAutoComplete, ensureSchema, logCompletion, rowToTask, sql } from "@/lib/db";
 
 export async function PATCH(request: NextRequest, { params }: { params: Promise<{ id: string }> }) {
   await ensureSchema();
@@ -10,7 +10,10 @@ export async function PATCH(request: NextRequest, { params }: { params: Promise<
     const [existing] = await sql`SELECT done FROM tasks WHERE id = ${id}`;
     const rows = await sql`UPDATE tasks SET done = ${body.done} WHERE id = ${id} RETURNING *`;
     if (!rows.length) return NextResponse.json({ error: "not found" }, { status: 404 });
-    if (body.done && !existing?.done) await logCompletion(rows[0].title as string);
+    if (body.done && !existing?.done) {
+      await logCompletion(rows[0].title as string);
+      if (rows[0].project_milestone_id) await checkMilestoneAutoComplete(rows[0].project_milestone_id as string);
+    }
     return NextResponse.json(rowToTask(rows[0]));
   }
   if (typeof body.date === "string") {

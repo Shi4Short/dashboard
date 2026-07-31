@@ -9,6 +9,7 @@ const EMPTY_STATE: AppState = {
   deals: [],
   projects: [],
   milestones: { weavy: [], webflow: [] },
+  projectMilestones: [],
   subs: [],
   financeEntries: [],
   pitchLog: {},
@@ -60,11 +61,18 @@ export function useManifestState() {
   }, [reloadState]);
 
   const addTask = useCallback(
-    async (title: string, category: Category, date: string, time: string, goalId: string | null = null) => {
+    async (
+      title: string,
+      category: Category,
+      date: string,
+      time: string,
+      goalId: string | null = null,
+      projectMilestoneId: string | null = null
+    ) => {
       if (!title.trim()) return;
       const task = await api<AppState["tasks"][number]>("/api/tasks", {
         method: "POST",
-        body: JSON.stringify({ title, category, date, time, goalId }),
+        body: JSON.stringify({ title, category, date, time, goalId, projectMilestoneId }),
       });
       setState((s) => ({ ...s, tasks: [...s.tasks, task] }));
     },
@@ -238,6 +246,43 @@ export function useManifestState() {
     await api(`/api/milestones/${id}`, { method: "DELETE" }).catch(() => {});
   }, []);
 
+  const addProjectMilestone = useCallback(async (projectId: string, title: string) => {
+    if (!title.trim()) return;
+    const milestone = await api<AppState["projectMilestones"][number]>("/api/project-milestones", {
+      method: "POST",
+      body: JSON.stringify({ projectId, title }),
+    });
+    setState((s) => ({ ...s, projectMilestones: [...s.projectMilestones, milestone] }));
+  }, []);
+
+  const toggleProjectMilestone = useCallback(
+    async (id: string) => {
+      let nextDone = false;
+      setState((s) => ({
+        ...s,
+        projectMilestones: s.projectMilestones.map((m) => {
+          if (m.id !== id) return m;
+          nextDone = !m.done;
+          return { ...m, done: nextDone };
+        }),
+      }));
+      await api(`/api/project-milestones/${id}`, { method: "PATCH", body: JSON.stringify({ done: nextDone }) }).catch(
+        () => {}
+      );
+      if (nextDone) refreshAfterCompletion();
+    },
+    [refreshAfterCompletion]
+  );
+
+  const deleteProjectMilestone = useCallback(async (id: string) => {
+    setState((s) => ({
+      ...s,
+      projectMilestones: s.projectMilestones.filter((m) => m.id !== id),
+      tasks: s.tasks.map((t) => (t.projectMilestoneId === id ? { ...t, projectMilestoneId: null } : t)),
+    }));
+    await api(`/api/project-milestones/${id}`, { method: "DELETE" }).catch(() => {});
+  }, []);
+
   const saveQ3Goals = useCallback(async (text: string) => {
     setState((s) => ({ ...s, q3goals: text }));
     await api(`/api/settings`, { method: "PUT", body: JSON.stringify({ q3goals: text }) }).catch(() => {});
@@ -318,6 +363,9 @@ export function useManifestState() {
       addMilestone,
       toggleMilestone,
       deleteMilestone,
+      addProjectMilestone,
+      toggleProjectMilestone,
+      deleteProjectMilestone,
       saveQ3Goals,
       addWeekGoal,
       toggleWeekGoalDone,

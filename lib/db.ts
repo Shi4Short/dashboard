@@ -1,5 +1,16 @@
 import { neon, type NeonQueryFunction } from "@neondatabase/serverless";
-import type { Deal, FinanceEntry, LogEntry, Milestone, NotionGoalTask, Project, Sub, Task, WeekGoal } from "./types";
+import type {
+  Deal,
+  FinanceEntry,
+  LogEntry,
+  Milestone,
+  NotionGoalTask,
+  Project,
+  ProjectMilestone,
+  Sub,
+  Task,
+  WeekGoal,
+} from "./types";
 import type { CalendarEvent } from "./google-calendar";
 import { randomUUID } from "crypto";
 import { addDays, todayStr, weekStartForDate } from "./utils";
@@ -79,6 +90,21 @@ export function ensureSchema(): Promise<void> {
         notes text NOT NULL DEFAULT '',
         created_at timestamptz NOT NULL DEFAULT now()
       )`;
+      await sql`CREATE TABLE IF NOT EXISTS project_milestones (
+        id text PRIMARY KEY,
+        project_id text NOT NULL REFERENCES projects(id) ON DELETE CASCADE,
+        title text NOT NULL,
+        done boolean NOT NULL DEFAULT false,
+        created_at timestamptz NOT NULL DEFAULT now()
+      )`;
+      // Only safe to add now that projects/project_milestones exist — tasks
+      // is created earlier in this function, so these can't be inline there.
+      // project_id is a general "belongs to this project" link (e.g. set by
+      // the Notion Project tag on import, before a task's been sorted into a
+      // specific milestone); project_milestone_id is the specific link once
+      // it has been.
+      await sql`ALTER TABLE tasks ADD COLUMN IF NOT EXISTS project_id text REFERENCES projects(id) ON DELETE SET NULL`;
+      await sql`ALTER TABLE tasks ADD COLUMN IF NOT EXISTS project_milestone_id text REFERENCES project_milestones(id) ON DELETE SET NULL`;
       await sql`CREATE TABLE IF NOT EXISTS milestones (
         id text PRIMARY KEY,
         track text NOT NULL,
@@ -132,6 +158,8 @@ export function rowToTask(r: Record<string, unknown>): Task {
     fromNotion: r.notion_page_id != null,
     pushCount: Number(r.push_count),
     goalId: (r.goal_id as string | null) ?? null,
+    projectId: (r.project_id as string | null) ?? null,
+    projectMilestoneId: (r.project_milestone_id as string | null) ?? null,
   };
 }
 
@@ -160,6 +188,15 @@ export function rowToMilestone(r: Record<string, unknown>): Milestone {
   return {
     id: r.id as string,
     track: r.track as Milestone["track"],
+    title: r.title as string,
+    done: r.done as boolean,
+  };
+}
+
+export function rowToProjectMilestone(r: Record<string, unknown>): ProjectMilestone {
+  return {
+    id: r.id as string,
+    projectId: r.project_id as string,
     title: r.title as string,
     done: r.done as boolean,
   };
@@ -225,6 +262,51 @@ export async function setSetting(key: string, value: string): Promise<void> {
 export async function logCompletion(text: string): Promise<void> {
   if (!text.trim()) return;
   await sql`INSERT INTO log_entries (id, date, text) VALUES (${randomUUID()}, ${todayStr()}, ${text})`;
+}
+
+/**
+ * Called after a task linked to a project milestone is marked done. Cascades
+ * two levels:
+ *  1. If every task under that milestone is now done, the milestone
+ *     auto-completes (this is what fills its segment on the project's
+ *     progress bar to 100%).
+ *  2. If that just completed the last remaining milestone on the project,
+ *     the project auto-completes too.
+ * Both steps log to Evidence the same way a manual done-toggle does, and
+ * both are no-ops if already done, so nothing double-logs.
+ */
+export async function checkMilestoneAutoComplete(projectMilestoneId: string): Promise<void> {
+  const [{ total, remaining }] = await sql`
+    SELECT count(*) AS total, count(*) FILTER (WHERE NOT done) AS remaining
+    FROM tasks WHERE project_milestone_id = ${projectMilestoneId}
+  `;
+  if (Number(total) === 0 || Number(remaining) > 0) return;
+
+  const [milestone] = await sql`SELECT project_id, title, done FROM project_milestones WHERE id = ${projectMilestoneId}`;
+  if (!milestone || milestone.done) return;
+
+  await sql`UPDATE project_milestones SET done = true WHERE id = ${projectMilestoneId}`;
+  await logCompletion(`Milestone complete: ${milestone.title}`);
+  await checkProjectMilestonesComplete(milestone.project_id as string);
+}
+
+/**
+ * The second half of the cascade, also usable on its own for a milestone
+ * marked done directly (not via its tasks all finishing) — same "all
+ * milestones done -> project auto-completes" rule either way.
+ */
+export async function checkProjectMilestonesComplete(projectId: string): Promise<void> {
+  const [{ total, remaining }] = await sql`
+    SELECT count(*) AS total, count(*) FILTER (WHERE NOT done) AS remaining
+    FROM project_milestones WHERE project_id = ${projectId}
+  `;
+  if (Number(total) === 0 || Number(remaining) > 0) return;
+
+  const [project] = await sql`SELECT status, name FROM projects WHERE id = ${projectId}`;
+  if (!project || project.status === "done") return;
+
+  await sql`UPDATE projects SET status = 'done' WHERE id = ${projectId}`;
+  await logCompletion(`Completed: ${project.name}`);
 }
 
 /**
@@ -341,14 +423,20 @@ export async function syncNotionGoalsAndTasks(
       `;
       goalsSynced++;
     } else {
+      let projectId: string | null = null;
+      if (item.projectName) {
+        const [match] = await sql`SELECT id FROM projects WHERE lower(name) = lower(${item.projectName}) LIMIT 1`;
+        projectId = match ? (match.id as string) : null;
+      }
       await sql`
-        INSERT INTO tasks (id, title, category, date, time, done, from_calendar, notion_page_id, notion_done)
-        VALUES (${randomUUID()}, ${item.name}, 'personal', ${item.date}, '', ${item.done}, false, ${item.id}, ${item.done})
+        INSERT INTO tasks (id, title, category, date, time, done, from_calendar, notion_page_id, notion_done, project_id)
+        VALUES (${randomUUID()}, ${item.name}, 'personal', ${item.date}, '', ${item.done}, false, ${item.id}, ${item.done}, ${projectId})
         ON CONFLICT (notion_page_id) DO UPDATE
         SET title = EXCLUDED.title,
             date = EXCLUDED.date,
             done = tasks.done OR EXCLUDED.done,
-            notion_done = EXCLUDED.notion_done
+            notion_done = EXCLUDED.notion_done,
+            project_id = EXCLUDED.project_id
       `;
       tasksSynced++;
     }

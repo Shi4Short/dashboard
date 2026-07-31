@@ -5,6 +5,7 @@ import {
   rowToLogEntry,
   rowToMilestone,
   rowToProject,
+  rowToProjectMilestone,
   rowToSub,
   rowToTask,
   rowToWeekGoal,
@@ -18,12 +19,13 @@ export const dynamic = "force-dynamic";
 export async function GET() {
   await seedIfNeeded();
 
-  const [tasks, deals, projects, milestones, subs, financeEntries, pitchLog, log, weekGoals, q3goals] =
+  const [tasks, deals, projects, milestones, projectMilestones, subs, financeEntries, pitchLog, log, weekGoals, q3goals] =
     await Promise.all([
       sql`SELECT * FROM tasks ORDER BY date, time`,
       sql`SELECT * FROM deals ORDER BY date DESC, created_at DESC`,
       sql`SELECT * FROM projects ORDER BY created_at`,
       sql`SELECT * FROM milestones ORDER BY created_at`,
+      sql`SELECT * FROM project_milestones ORDER BY created_at`,
       sql`SELECT * FROM subs ORDER BY created_at`,
       sql`SELECT * FROM finance_entries ORDER BY date DESC`,
       sql`SELECT * FROM pitch_log`,
@@ -51,6 +53,7 @@ export async function GET() {
     deals: deals.map(rowToDeal),
     projects: projects.map(rowToProject),
     milestones: milestonesByTrack,
+    projectMilestones: projectMilestones.map(rowToProjectMilestone),
     subs: subs.map(rowToSub),
     financeEntries: financeEntries.map(rowToFinanceEntry),
     pitchLog: pitchLogMap,

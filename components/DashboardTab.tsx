@@ -1,5 +1,6 @@
 "use client";
 
+import Link from "next/link";
 import { useState } from "react";
 import type { ManifestActions } from "@/lib/useManifestState";
 import { STAGES, type AppState } from "@/lib/types";
@@ -215,7 +216,11 @@ export function DashboardTab({ state, actions }: { state: AppState; actions: Man
               {portfolioTasks.length ? (
                 portfolioTasks.map((p) => (
                   <div className="miniitem" key={p.id}>
-                    <span className="name">{p.name}</span>
+                    <span className="name">
+                      <Link href={`/projects/${p.id}`} className="linklike">
+                        {p.name}
+                      </Link>
+                    </span>
                     <select value={p.status} onChange={(e) => actions.updateProjectStatus(p.id, e.target.value)}>
                       {["active", "waiting", "done"].map((s) => (
                         <option value={s} key={s}>

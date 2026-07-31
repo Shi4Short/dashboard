@@ -89,8 +89,9 @@ export async function fetchGoalsAndTasks(): Promise<NotionGoalTask[]> {
         : "";
       const notes = props.Notes?.type === "rich_text" ? plainText(props.Notes.rich_text) : "";
       const done = props.Status?.type === "status" && props.Status.status?.name === "Done";
+      const projectName = props.Project?.type === "select" ? (props.Project.select?.name ?? null) : null;
 
-      return { id: page.id, name, date, period, notes, done };
+      return { id: page.id, name, date, period, notes, done, projectName };
     });
 }
 

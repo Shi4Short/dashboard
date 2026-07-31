@@ -2,6 +2,7 @@
 
 import { useEffect, useState } from "react";
 import type { ManifestActions } from "@/lib/useManifestState";
+import { todayStr } from "@/lib/utils";
 
 interface CalendarEvent {
   id: string;
@@ -10,6 +11,13 @@ interface CalendarEvent {
   end: string | null;
   allDay: boolean;
   url: string | null;
+}
+
+// event.start is either an all-day date ("2026-07-31") or a timed ISO
+// datetime ("2026-07-31T10:00:00-04:00") — the first 10 characters are
+// the date in both cases, so slicing avoids needing separate handling.
+function isToday(ev: CalendarEvent): boolean {
+  return !!ev.start && ev.start.slice(0, 10) === todayStr();
 }
 
 function fmtEventTime(ev: CalendarEvent): string {
@@ -58,6 +66,8 @@ export function GoogleCalendarCard({ actions }: { actions: ManifestActions }) {
     }
   };
 
+  const todaysEvents = events.filter(isToday);
+
   return (
     <div className="card">
       <h2>
@@ -76,8 +86,8 @@ export function GoogleCalendarCard({ actions }: { actions: ManifestActions }) {
         </>
       ) : (
         <>
-          {events.length ? (
-            events.map((ev) => (
+          {todaysEvents.length ? (
+            todaysEvents.map((ev) => (
               <div className="miniitem" key={ev.id}>
                 <span className="name">
                   {ev.url ? (
@@ -92,7 +102,7 @@ export function GoogleCalendarCard({ actions }: { actions: ManifestActions }) {
               </div>
             ))
           ) : (
-            <div className="empty">No upcoming events.</div>
+            <div className="empty">Nothing on the calendar today.</div>
           )}
           <div style={{ display: "flex", alignItems: "center", gap: "10px", marginTop: "12px" }}>
             <button className="ghost" onClick={handleSync} disabled={syncStatus === "syncing"}>

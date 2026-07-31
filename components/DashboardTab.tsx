@@ -3,7 +3,7 @@
 import { useRouter } from "next/navigation";
 import { useState } from "react";
 import type { ManifestActions } from "@/lib/useManifestState";
-import { PROJECT_TYPES, STAGES, type AppState, type ProjectType } from "@/lib/types";
+import { STAGES, type AppState } from "@/lib/types";
 import { fmtDate, money, todayStr, weekDaysFor } from "@/lib/utils";
 import { AddWeekGoalRow, ProjectProgressBar, WeekGoalsList, WeekSquares } from "./shared";
 import { NotionNetworkingCard } from "./NotionNetworkingCard";
@@ -12,17 +12,12 @@ import { GoogleCalendarCard } from "./GoogleCalendarCard";
 
 export function DashboardTab({ state, actions }: { state: AppState; actions: ManifestActions }) {
   const router = useRouter();
-  const [ui, setUi] = useState({ weavyExpanded: false, webflowExpanded: false });
   const [subName, setSubName] = useState("");
   const [subAmount, setSubAmount] = useState("");
   const [subRenew, setSubRenew] = useState("");
   const [dealBrand, setDealBrand] = useState("");
   const [dealValue, setDealValue] = useState("");
   const [dealStage, setDealStage] = useState<(typeof STAGES)[number]>("outbound");
-  const [newProjectName, setNewProjectName] = useState("");
-  const [newProjectType, setNewProjectType] = useState<ProjectType>("portfolio");
-  const [weavyInput, setWeavyInput] = useState("");
-  const [webflowInput, setWebflowInput] = useState("");
 
   const t0 = todayStr();
   const subTotal = state.subs.reduce((a, s) => a + s.amount, 0);
@@ -41,7 +36,68 @@ export function DashboardTab({ state, actions }: { state: AppState; actions: Man
       <h1>Dashboard</h1>
       <NotionSyncButton actions={actions} />
 
-      <GoogleCalendarCard actions={actions} />
+      <h2
+        style={{
+          fontFamily: "var(--font-fraunces), serif",
+          fontWeight: 500,
+          color: "var(--gold)",
+          fontSize: "15px",
+          margin: "0 0 4px",
+        }}
+      >
+        Projects
+      </h2>
+      {state.projects.map((p) => {
+        const projectMilestones = state.projectMilestones.filter((m) => m.projectId === p.id);
+        const done = projectMilestones.filter((m) => m.done).length;
+        const pct = projectMilestones.length ? Math.round((done / projectMilestones.length) * 100) : 0;
+        return (
+          <div
+            className="card"
+            style={{ cursor: "pointer" }}
+            key={p.id}
+            onClick={() => router.push(`/projects/${p.id}`)}
+          >
+            <h2>
+              {p.name}{" "}
+              <span style={{ fontSize: "11px", color: "var(--muted)", fontWeight: 400 }}>{p.type}</span>
+            </h2>
+            <div className="proglabel">
+              <span>
+                {done}/{projectMilestones.length} milestones
+              </span>
+              <span>{pct}%</span>
+            </div>
+            {projectMilestones.length ? (
+              <ProjectProgressBar milestones={projectMilestones} tasks={state.tasks} />
+            ) : (
+              <div className="empty">No milestones yet — click in to add some.</div>
+            )}
+            <div style={{ display: "flex", justifyContent: "flex-end", alignItems: "center", gap: "8px", marginTop: "8px" }}>
+              <select
+                value={p.status}
+                onClick={(e) => e.stopPropagation()}
+                onChange={(e) => actions.updateProjectStatus(p.id, e.target.value)}
+              >
+                {["active", "waiting", "done"].map((s) => (
+                  <option value={s} key={s}>
+                    {s}
+                  </option>
+                ))}
+              </select>
+              <button
+                className="smallx"
+                onClick={(e) => {
+                  e.stopPropagation();
+                  actions.deleteProject(p.id);
+                }}
+              >
+                ×
+              </button>
+            </div>
+          </div>
+        );
+      })}
 
       <div className="card">
         <h2>
@@ -56,6 +112,8 @@ export function DashboardTab({ state, actions }: { state: AppState; actions: Man
           <AddWeekGoalRow weekStart={dashWeekStart} actions={actions} />
         </div>
       </div>
+
+      <GoogleCalendarCard actions={actions} />
 
       <div className="card">
         <h2>Q3 Goal: $5,000</h2>
@@ -196,230 +254,6 @@ export function DashboardTab({ state, actions }: { state: AppState; actions: Man
       </div>
 
       <NotionNetworkingCard />
-
-      <h2
-        style={{
-          fontFamily: "var(--font-fraunces), serif",
-          fontWeight: 500,
-          color: "var(--gold)",
-          fontSize: "15px",
-          margin: "0 0 4px",
-        }}
-      >
-        Projects
-      </h2>
-      {state.projects.map((p) => {
-        const projectMilestones = state.projectMilestones.filter((m) => m.projectId === p.id);
-        const done = projectMilestones.filter((m) => m.done).length;
-        const pct = projectMilestones.length ? Math.round((done / projectMilestones.length) * 100) : 0;
-        return (
-          <div
-            className="card"
-            style={{ cursor: "pointer" }}
-            key={p.id}
-            onClick={() => router.push(`/projects/${p.id}`)}
-          >
-            <h2>
-              {p.name}{" "}
-              <span style={{ fontSize: "11px", color: "var(--muted)", fontWeight: 400 }}>{p.type}</span>
-            </h2>
-            <div className="proglabel">
-              <span>
-                {done}/{projectMilestones.length} milestones
-              </span>
-              <span>{pct}%</span>
-            </div>
-            {projectMilestones.length ? (
-              <ProjectProgressBar milestones={projectMilestones} tasks={state.tasks} />
-            ) : (
-              <div className="empty">No milestones yet — click in to add some.</div>
-            )}
-            <div style={{ display: "flex", justifyContent: "flex-end", alignItems: "center", gap: "8px", marginTop: "8px" }}>
-              <select
-                value={p.status}
-                onClick={(e) => e.stopPropagation()}
-                onChange={(e) => actions.updateProjectStatus(p.id, e.target.value)}
-              >
-                {["active", "waiting", "done"].map((s) => (
-                  <option value={s} key={s}>
-                    {s}
-                  </option>
-                ))}
-              </select>
-              <button
-                className="smallx"
-                onClick={(e) => {
-                  e.stopPropagation();
-                  actions.deleteProject(p.id);
-                }}
-              >
-                ×
-              </button>
-            </div>
-          </div>
-        );
-      })}
-      <div className="card">
-        <div className="addrow">
-          <input
-            type="text"
-            placeholder="New project name..."
-            value={newProjectName}
-            onChange={(e) => setNewProjectName(e.target.value)}
-          />
-          <select value={newProjectType} onChange={(e) => setNewProjectType(e.target.value as ProjectType)}>
-            {PROJECT_TYPES.map((t) => (
-              <option value={t} key={t}>
-                {t}
-              </option>
-            ))}
-          </select>
-          <button
-            className="primary"
-            onClick={() => {
-              actions.addProject(newProjectName, newProjectType);
-              setNewProjectName("");
-            }}
-          >
-            Add project
-          </button>
-        </div>
-      </div>
-
-      <div className="card">
-        <h2>Portfolio Resources</h2>
-        <div className="checkin-q" style={{ margin: "0 0 8px" }}>
-          Outreach targets
-        </div>
-        <ExternalLink href="https://linkedin.com/in/jessica-svendsen-266a0b136">Jessica Svendsen (LinkedIn)</ExternalLink>
-        <ExternalLink href="https://tinasmith.com">Tina Smith (Portfolio)</ExternalLink>
-        <ExternalLink href="https://diegogallego.es">Diego Gallego (Portfolio)</ExternalLink>
-        <ExternalLink href="https://adplist.org/explore">ADPList Explore</ExternalLink>
-        <div className="checkin-q" style={{ margin: "10px 0 8px" }}>
-          Study list
-        </div>
-        <ExternalLink href="https://www.youtube.com/watch?v=YLo6g58vUm0">Intro to Design Systems (YouTube)</ExternalLink>
-        <ExternalLink href="https://www.youtube.com/watch?v=Jjt-ZXY4eRY">100 Art Direction Ideas (YouTube)</ExternalLink>
-        <ExternalLink href="https://www.youtube.com/watch?v=7uV_V07p7L8">
-          Where Do Strategic Insights Come From? (market gap)
-        </ExternalLink>
-        <ExternalLink href="https://www.instagram.com/p/DHWhOdgRN3-/">Brand/system logic (IG)</ExternalLink>
-        <ExternalLink href="https://www.instagram.com/p/DGyLPiBR7m7/">Visual inspiration (IG)</ExternalLink>
-        <div className="checkin-q" style={{ margin: "10px 0 8px" }}>
-          Vault / Inspo
-        </div>
-        <ExternalLink href="https://www.figma.com/board/TDrBogrS8XreRY3QgGSGES/How-to-become-an-Art-Director?node-id=4-621">
-          How to Become an Art Director (Figma board)
-        </ExternalLink>
-        <ExternalLink href="https://www.elirothas.com/crayola">Crayola project (inspo)</ExternalLink>
-      </div>
-
-      <div className="grid2">
-        <MilestoneCard
-          title="Weavy"
-          track="weavy"
-          colorClass="sage"
-          state={state}
-          actions={actions}
-          expanded={ui.weavyExpanded}
-          onToggle={() => setUi((u) => ({ ...u, weavyExpanded: !u.weavyExpanded }))}
-          input={weavyInput}
-          setInput={setWeavyInput}
-        />
-        <MilestoneCard
-          title="Webflow"
-          track="webflow"
-          colorClass="teal"
-          state={state}
-          actions={actions}
-          expanded={ui.webflowExpanded}
-          onToggle={() => setUi((u) => ({ ...u, webflowExpanded: !u.webflowExpanded }))}
-          input={webflowInput}
-          setInput={setWebflowInput}
-        />
-      </div>
     </>
-  );
-}
-
-function ExternalLink({ href, children }: { href: string; children: React.ReactNode }) {
-  return (
-    <div className="miniitem">
-      <span className="name">
-        <a href={href} target="_blank" rel="noopener noreferrer" className="linklike">
-          {children}
-        </a>
-      </span>
-    </div>
-  );
-}
-
-function MilestoneCard({
-  title,
-  track,
-  colorClass,
-  state,
-  actions,
-  expanded,
-  onToggle,
-  input,
-  setInput,
-}: {
-  title: string;
-  track: "weavy" | "webflow";
-  colorClass: "sage" | "teal";
-  state: AppState;
-  actions: ManifestActions;
-  expanded: boolean;
-  onToggle: () => void;
-  input: string;
-  setInput: (v: string) => void;
-}) {
-  const items = state.milestones[track];
-  const done = items.filter((m) => m.done).length;
-  const pct = items.length ? Math.round((done / items.length) * 100) : 0;
-
-  return (
-    <div className="card">
-      <h2>{title}</h2>
-      <div className="proglabel">
-        <span>
-          {done}/{items.length} milestones
-        </span>
-        <span>{pct}%</span>
-      </div>
-      <div className="progbar" onClick={onToggle}>
-        <div className={`progfill ${colorClass}`} style={{ width: `${pct}%` }} />
-      </div>
-      {expanded ? (
-        <div className="milestonelist">
-          {items.length ? (
-            items.map((m) => (
-              <div className={`taskrow ${m.done ? "done" : ""}`} key={m.id}>
-                <input type="checkbox" checked={m.done} onChange={() => actions.toggleMilestone(track, m.id)} />
-                <span className="title">{m.title}</span>
-                <button className="smallx" onClick={() => actions.deleteMilestone(track, m.id)}>
-                  ×
-                </button>
-              </div>
-            ))
-          ) : (
-            <div className="empty">No milestones yet.</div>
-          )}
-          <div className="addrow">
-            <input type="text" placeholder="Milestone or checkpoint..." value={input} onChange={(e) => setInput(e.target.value)} />
-            <button
-              className="primary"
-              onClick={() => {
-                actions.addMilestone(track, input);
-                setInput("");
-              }}
-            >
-              Add
-            </button>
-          </div>
-        </div>
-      ) : null}
-    </div>
   );
 }

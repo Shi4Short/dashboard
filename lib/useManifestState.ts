@@ -1,15 +1,15 @@
 "use client";
 
 import { useCallback, useEffect, useState } from "react";
-import type { AppState, Category, MilestoneTrack, ProjectType, Stage } from "./types";
+import type { AppState, Category, ProjectType, Stage } from "./types";
 import { addDays, todayStr } from "./utils";
 
 const EMPTY_STATE: AppState = {
   tasks: [],
   deals: [],
   projects: [],
-  milestones: { weavy: [], webflow: [] },
   projectMilestones: [],
+  projectResources: [],
   subs: [],
   financeEntries: [],
   pitchLog: {},
@@ -205,47 +205,6 @@ export function useManifestState() {
     await api(`/api/pitch-log`, { method: "POST", body: JSON.stringify({ delta }) }).catch(() => {});
   }, []);
 
-  const addMilestone = useCallback(async (track: MilestoneTrack, title: string) => {
-    if (!title.trim()) return;
-    const milestone = await api<AppState["milestones"]["weavy"][number]>("/api/milestones", {
-      method: "POST",
-      body: JSON.stringify({ track, title }),
-    });
-    setState((s) => ({
-      ...s,
-      milestones: { ...s.milestones, [track]: [...s.milestones[track], milestone] },
-    }));
-  }, []);
-
-  const toggleMilestone = useCallback(
-    async (track: MilestoneTrack, id: string) => {
-      let nextDone = false;
-      setState((s) => {
-        const items = s.milestones[track].map((m) => {
-          if (m.id === id) {
-            nextDone = !m.done;
-            return { ...m, done: nextDone };
-          }
-          return m;
-        });
-        return { ...s, milestones: { ...s.milestones, [track]: items } };
-      });
-      await api(`/api/milestones/${id}`, { method: "PATCH", body: JSON.stringify({ done: nextDone }) }).catch(
-        () => {}
-      );
-      if (nextDone) refreshAfterCompletion();
-    },
-    [refreshAfterCompletion]
-  );
-
-  const deleteMilestone = useCallback(async (track: MilestoneTrack, id: string) => {
-    setState((s) => ({
-      ...s,
-      milestones: { ...s.milestones, [track]: s.milestones[track].filter((m) => m.id !== id) },
-    }));
-    await api(`/api/milestones/${id}`, { method: "DELETE" }).catch(() => {});
-  }, []);
-
   const addProjectMilestone = useCallback(async (projectId: string, title: string) => {
     if (!title.trim()) return;
     const milestone = await api<AppState["projectMilestones"][number]>("/api/project-milestones", {
@@ -281,6 +240,20 @@ export function useManifestState() {
       tasks: s.tasks.map((t) => (t.projectMilestoneId === id ? { ...t, projectMilestoneId: null } : t)),
     }));
     await api(`/api/project-milestones/${id}`, { method: "DELETE" }).catch(() => {});
+  }, []);
+
+  const addProjectResource = useCallback(async (projectId: string, label: string, url: string) => {
+    if (!label.trim() || !url.trim()) return;
+    const resource = await api<AppState["projectResources"][number]>("/api/project-resources", {
+      method: "POST",
+      body: JSON.stringify({ projectId, label, url }),
+    });
+    setState((s) => ({ ...s, projectResources: [...s.projectResources, resource] }));
+  }, []);
+
+  const deleteProjectResource = useCallback(async (id: string) => {
+    setState((s) => ({ ...s, projectResources: s.projectResources.filter((r) => r.id !== id) }));
+    await api(`/api/project-resources/${id}`, { method: "DELETE" }).catch(() => {});
   }, []);
 
   const saveQ3Goals = useCallback(async (text: string) => {
@@ -360,12 +333,11 @@ export function useManifestState() {
       addSub,
       deleteSub,
       bumpPitch,
-      addMilestone,
-      toggleMilestone,
-      deleteMilestone,
       addProjectMilestone,
       toggleProjectMilestone,
       deleteProjectMilestone,
+      addProjectResource,
+      deleteProjectResource,
       saveQ3Goals,
       addWeekGoal,
       toggleWeekGoalDone,

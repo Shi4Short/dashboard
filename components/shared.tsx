@@ -461,3 +461,53 @@ export function AddProjectMilestoneRow({ projectId, actions }: { projectId: stri
     </div>
   );
 }
+
+export function ProjectResourcesCard({
+  projectId,
+  state,
+  actions,
+}: {
+  projectId: string;
+  state: AppState;
+  actions: ManifestActions;
+}) {
+  const [label, setLabel] = useState("");
+  const [url, setUrl] = useState("");
+  const resources = state.projectResources.filter((r) => r.projectId === projectId);
+
+  return (
+    <div className="card">
+      <h2>Resources</h2>
+      {resources.length ? (
+        resources.map((r) => (
+          <div className="miniitem" key={r.id}>
+            <span className="name">
+              <a href={r.url} target="_blank" rel="noopener noreferrer" className="linklike">
+                {r.label}
+              </a>
+            </span>
+            <button className="smallx" onClick={() => actions.deleteProjectResource(r.id)}>
+              ×
+            </button>
+          </div>
+        ))
+      ) : (
+        <div className="empty">No resources yet.</div>
+      )}
+      <div className="addrow">
+        <input type="text" placeholder="Label..." value={label} onChange={(e) => setLabel(e.target.value)} />
+        <input type="text" placeholder="URL..." value={url} onChange={(e) => setUrl(e.target.value)} />
+        <button
+          className="primary"
+          onClick={() => {
+            actions.addProjectResource(projectId, label, url);
+            setLabel("");
+            setUrl("");
+          }}
+        >
+          Add
+        </button>
+      </div>
+    </div>
+  );
+}

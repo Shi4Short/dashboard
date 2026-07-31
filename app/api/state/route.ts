@@ -3,29 +3,29 @@ import {
   rowToDeal,
   rowToFinanceEntry,
   rowToLogEntry,
-  rowToMilestone,
   rowToProject,
   rowToProjectMilestone,
+  rowToProjectResource,
   rowToSub,
   rowToTask,
   rowToWeekGoal,
   seedIfNeeded,
   sql,
 } from "@/lib/db";
-import type { AppState, MilestoneTrack } from "@/lib/types";
+import type { AppState } from "@/lib/types";
 
 export const dynamic = "force-dynamic";
 
 export async function GET() {
   await seedIfNeeded();
 
-  const [tasks, deals, projects, milestones, projectMilestones, subs, financeEntries, pitchLog, log, weekGoals, q3goals] =
+  const [tasks, deals, projects, projectMilestones, projectResources, subs, financeEntries, pitchLog, log, weekGoals, q3goals] =
     await Promise.all([
       sql`SELECT * FROM tasks ORDER BY date, time`,
       sql`SELECT * FROM deals ORDER BY date DESC, created_at DESC`,
       sql`SELECT * FROM projects ORDER BY created_at`,
-      sql`SELECT * FROM milestones ORDER BY created_at`,
       sql`SELECT * FROM project_milestones ORDER BY created_at`,
+      sql`SELECT * FROM project_resources ORDER BY created_at`,
       sql`SELECT * FROM subs ORDER BY created_at`,
       sql`SELECT * FROM finance_entries ORDER BY date DESC`,
       sql`SELECT * FROM pitch_log`,
@@ -33,15 +33,6 @@ export async function GET() {
       sql`SELECT * FROM week_goals ORDER BY created_at`,
       sql`SELECT value FROM settings WHERE key = 'q3goals'`,
     ]);
-
-  const milestonesByTrack: Record<MilestoneTrack, ReturnType<typeof rowToMilestone>[]> = {
-    weavy: [],
-    webflow: [],
-  };
-  for (const row of milestones) {
-    const m = rowToMilestone(row);
-    milestonesByTrack[m.track].push(m);
-  }
 
   const pitchLogMap: Record<string, number> = {};
   for (const row of pitchLog) {
@@ -52,8 +43,8 @@ export async function GET() {
     tasks: tasks.map(rowToTask),
     deals: deals.map(rowToDeal),
     projects: projects.map(rowToProject),
-    milestones: milestonesByTrack,
     projectMilestones: projectMilestones.map(rowToProjectMilestone),
+    projectResources: projectResources.map(rowToProjectResource),
     subs: subs.map(rowToSub),
     financeEntries: financeEntries.map(rowToFinanceEntry),
     pitchLog: pitchLogMap,

@@ -3,10 +3,10 @@ import type {
   Deal,
   FinanceEntry,
   LogEntry,
-  Milestone,
   NotionGoalTask,
   Project,
   ProjectMilestone,
+  ProjectResource,
   Sub,
   Task,
   WeekGoal,
@@ -97,6 +97,13 @@ export function ensureSchema(): Promise<void> {
         done boolean NOT NULL DEFAULT false,
         created_at timestamptz NOT NULL DEFAULT now()
       )`;
+      await sql`CREATE TABLE IF NOT EXISTS project_resources (
+        id text PRIMARY KEY,
+        project_id text NOT NULL REFERENCES projects(id) ON DELETE CASCADE,
+        label text NOT NULL,
+        url text NOT NULL,
+        created_at timestamptz NOT NULL DEFAULT now()
+      )`;
       // Only safe to add now that projects/project_milestones exist — tasks
       // is created earlier in this function, so these can't be inline there.
       // project_id is a general "belongs to this project" link (e.g. set by
@@ -105,13 +112,6 @@ export function ensureSchema(): Promise<void> {
       // it has been.
       await sql`ALTER TABLE tasks ADD COLUMN IF NOT EXISTS project_id text REFERENCES projects(id) ON DELETE SET NULL`;
       await sql`ALTER TABLE tasks ADD COLUMN IF NOT EXISTS project_milestone_id text REFERENCES project_milestones(id) ON DELETE SET NULL`;
-      await sql`CREATE TABLE IF NOT EXISTS milestones (
-        id text PRIMARY KEY,
-        track text NOT NULL,
-        title text NOT NULL,
-        done boolean NOT NULL DEFAULT false,
-        created_at timestamptz NOT NULL DEFAULT now()
-      )`;
       await sql`CREATE TABLE IF NOT EXISTS subs (
         id text PRIMARY KEY,
         name text NOT NULL,
@@ -184,21 +184,21 @@ export function rowToProject(r: Record<string, unknown>): Project {
   };
 }
 
-export function rowToMilestone(r: Record<string, unknown>): Milestone {
-  return {
-    id: r.id as string,
-    track: r.track as Milestone["track"],
-    title: r.title as string,
-    done: r.done as boolean,
-  };
-}
-
 export function rowToProjectMilestone(r: Record<string, unknown>): ProjectMilestone {
   return {
     id: r.id as string,
     projectId: r.project_id as string,
     title: r.title as string,
     done: r.done as boolean,
+  };
+}
+
+export function rowToProjectResource(r: Record<string, unknown>): ProjectResource {
+  return {
+    id: r.id as string,
+    projectId: r.project_id as string,
+    label: r.label as string,
+    url: r.url as string,
   };
 }
 

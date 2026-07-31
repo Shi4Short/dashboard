@@ -18,9 +18,6 @@ export type ProjectStatus = (typeof PROJECT_STATUSES)[number];
 export const PROJECT_TYPES = ["client", "portfolio", "learning"] as const;
 export type ProjectType = (typeof PROJECT_TYPES)[number];
 
-export const MILESTONE_TRACKS = ["weavy", "webflow"] as const;
-export type MilestoneTrack = (typeof MILESTONE_TRACKS)[number];
-
 export interface Task {
   id: string;
   title: string;
@@ -53,21 +50,20 @@ export interface Project {
   notes: string;
 }
 
-export interface Milestone {
-  id: string;
-  track: MilestoneTrack;
-  title: string;
-  done: boolean;
-}
-
-/** Distinct from Milestone (which is the fixed Weavy/Webflow tracks) — this
- * belongs to an arbitrary project, ordered, and drives that project's
- * segmented progress bar. */
+/** Belongs to an arbitrary project and drives that project's segmented
+ * progress bar. */
 export interface ProjectMilestone {
   id: string;
   projectId: string;
   title: string;
   done: boolean;
+}
+
+export interface ProjectResource {
+  id: string;
+  projectId: string;
+  label: string;
+  url: string;
 }
 
 export interface Sub {
@@ -126,8 +122,8 @@ export interface AppState {
   tasks: Task[];
   deals: Deal[];
   projects: Project[];
-  milestones: Record<MilestoneTrack, Milestone[]>;
   projectMilestones: ProjectMilestone[];
+  projectResources: ProjectResource[];
   subs: Sub[];
   financeEntries: FinanceEntry[];
   pitchLog: Record<string, number>;

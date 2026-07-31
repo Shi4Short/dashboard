@@ -4,7 +4,13 @@ import Link from "next/link";
 import { useParams } from "next/navigation";
 import { PROJECT_STATUSES } from "@/lib/types";
 import { useManifestState } from "@/lib/useManifestState";
-import { AddProjectMilestoneRow, ProjectMilestonesList, ProjectProgressBar, TaskRow } from "@/components/shared";
+import {
+  AddProjectMilestoneRow,
+  ProjectMilestonesList,
+  ProjectProgressBar,
+  ProjectResourcesCard,
+  TaskRow,
+} from "@/components/shared";
 
 export default function ProjectPage() {
   const { id } = useParams<{ id: string }>();
@@ -48,45 +54,53 @@ export default function ProjectPage() {
       </div>
       <h1>{project.name}</h1>
 
-      <div className="card">
-        <h2>Status</h2>
-        <select value={project.status} onChange={(e) => actions.updateProjectStatus(project.id, e.target.value)}>
-          {PROJECT_STATUSES.map((s) => (
-            <option value={s} key={s}>
-              {s}
-            </option>
-          ))}
-        </select>
-      </div>
-
-      <div className="card">
-        <h2>Progress</h2>
-        {milestones.length ? (
-          <ProjectProgressBar milestones={milestones} tasks={state.tasks} />
-        ) : (
-          <div className="empty">Add a milestone below to start tracking progress.</div>
-        )}
-      </div>
-
-      <div className="card">
-        <h2>Milestones</h2>
-        <ProjectMilestonesList projectId={project.id} state={state} actions={actions} />
-        <AddProjectMilestoneRow projectId={project.id} actions={actions} />
-      </div>
-
-      {unassignedTasks.length ? (
-        <div className="card">
-          <h2>
-            Unassigned tasks{" "}
-            <span style={{ fontSize: "11px", color: "var(--muted)", fontWeight: 400 }}>
-              tagged to this project, not yet under a milestone
-            </span>
-          </h2>
-          {unassignedTasks.map((t) => (
-            <TaskRow key={t.id} task={t} onToggle={actions.toggleTask} onDelete={actions.deleteTask} />
-          ))}
+      <div style={{ display: "flex", gap: "16px", alignItems: "flex-start", flexWrap: "wrap" }}>
+        <div style={{ flex: "0 0 280px", minWidth: "240px" }}>
+          <ProjectResourcesCard projectId={project.id} state={state} actions={actions} />
         </div>
-      ) : null}
+
+        <div style={{ flex: "1 1 400px", minWidth: "280px" }}>
+          <div className="card">
+            <h2>Status</h2>
+            <select value={project.status} onChange={(e) => actions.updateProjectStatus(project.id, e.target.value)}>
+              {PROJECT_STATUSES.map((s) => (
+                <option value={s} key={s}>
+                  {s}
+                </option>
+              ))}
+            </select>
+          </div>
+
+          <div className="card">
+            <h2>Progress</h2>
+            {milestones.length ? (
+              <ProjectProgressBar milestones={milestones} tasks={state.tasks} />
+            ) : (
+              <div className="empty">Add a milestone below to start tracking progress.</div>
+            )}
+          </div>
+
+          <div className="card">
+            <h2>Milestones</h2>
+            <ProjectMilestonesList projectId={project.id} state={state} actions={actions} />
+            <AddProjectMilestoneRow projectId={project.id} actions={actions} />
+          </div>
+
+          {unassignedTasks.length ? (
+            <div className="card">
+              <h2>
+                Unassigned tasks{" "}
+                <span style={{ fontSize: "11px", color: "var(--muted)", fontWeight: 400 }}>
+                  tagged to this project, not yet under a milestone
+                </span>
+              </h2>
+              {unassignedTasks.map((t) => (
+                <TaskRow key={t.id} task={t} onToggle={actions.toggleTask} onDelete={actions.deleteTask} />
+              ))}
+            </div>
+          ) : null}
+        </div>
+      </div>
     </div>
   );
 }

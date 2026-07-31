@@ -3,23 +3,24 @@
 import { useRouter } from "next/navigation";
 import { useState } from "react";
 import type { ManifestActions } from "@/lib/useManifestState";
-import { STAGES, type AppState } from "@/lib/types";
+import { PROJECT_TYPES, STAGES, type AppState, type ProjectType } from "@/lib/types";
 import { fmtDate, money, todayStr, weekDaysFor } from "@/lib/utils";
-import { AddWeekGoalRow, WeekGoalsList, WeekSquares } from "./shared";
+import { AddWeekGoalRow, ProjectProgressBar, WeekGoalsList, WeekSquares } from "./shared";
 import { NotionNetworkingCard } from "./NotionNetworkingCard";
 import { NotionSyncButton } from "./NotionSyncButton";
 import { GoogleCalendarCard } from "./GoogleCalendarCard";
 
 export function DashboardTab({ state, actions }: { state: AppState; actions: ManifestActions }) {
   const router = useRouter();
-  const [ui, setUi] = useState({ portfolioExpanded: false, weavyExpanded: false, webflowExpanded: false });
+  const [ui, setUi] = useState({ weavyExpanded: false, webflowExpanded: false });
   const [subName, setSubName] = useState("");
   const [subAmount, setSubAmount] = useState("");
   const [subRenew, setSubRenew] = useState("");
   const [dealBrand, setDealBrand] = useState("");
   const [dealValue, setDealValue] = useState("");
   const [dealStage, setDealStage] = useState<(typeof STAGES)[number]>("outbound");
-  const [portfolioInput, setPortfolioInput] = useState("");
+  const [newProjectName, setNewProjectName] = useState("");
+  const [newProjectType, setNewProjectType] = useState<ProjectType>("portfolio");
   const [weavyInput, setWeavyInput] = useState("");
   const [webflowInput, setWebflowInput] = useState("");
 
@@ -29,10 +30,6 @@ export function DashboardTab({ state, actions }: { state: AppState; actions: Man
     .filter((d) => d.stage === "booked" && d.date >= "2026-07-01" && d.date <= "2026-09-30")
     .reduce((a, d) => a + (d.value || 0), 0);
   const q3Pct = Math.min(100, Math.round((q3Sum / 5000) * 100));
-
-  const portfolioTasks = state.projects.filter((p) => p.type === "portfolio");
-  const portfolioDone = portfolioTasks.filter((p) => p.status === "done").length;
-  const portfolioPct = portfolioTasks.length ? Math.round((portfolioDone / portfolioTasks.length) * 100) : 0;
 
   const dealDates = [...new Set(state.deals.map((d) => d.date))].sort().reverse();
   const dashWeekDays = weekDaysFor(0);
@@ -200,99 +197,124 @@ export function DashboardTab({ state, actions }: { state: AppState; actions: Man
 
       <NotionNetworkingCard />
 
-      <div className="grid3">
-        <div className="card">
-          <h2>Portfolio</h2>
-          <div className="proglabel">
-            <span>
-              {portfolioDone}/{portfolioTasks.length} complete
-            </span>
-            <span>{portfolioPct}%</span>
-          </div>
-          <div className="progbar" onClick={() => setUi((u) => ({ ...u, portfolioExpanded: !u.portfolioExpanded }))}>
-            <div className="progfill" style={{ width: `${portfolioPct}%` }} />
-          </div>
-          {ui.portfolioExpanded ? (
-            <div className="milestonelist">
-              {portfolioTasks.length ? (
-                portfolioTasks.map((p) => (
-                  <div
-                    className="miniitem"
-                    style={{ cursor: "pointer" }}
-                    key={p.id}
-                    onClick={() => router.push(`/projects/${p.id}`)}
-                  >
-                    <span className="name linklike">{p.name}</span>
-                    <select
-                      value={p.status}
-                      onClick={(e) => e.stopPropagation()}
-                      onChange={(e) => actions.updateProjectStatus(p.id, e.target.value)}
-                    >
-                      {["active", "waiting", "done"].map((s) => (
-                        <option value={s} key={s}>
-                          {s}
-                        </option>
-                      ))}
-                    </select>
-                    <button
-                      className="smallx"
-                      onClick={(e) => {
-                        e.stopPropagation();
-                        actions.deleteProject(p.id);
-                      }}
-                    >
-                      ×
-                    </button>
-                  </div>
-                ))
-              ) : (
-                <div className="empty">No portfolio tasks yet.</div>
-              )}
-              <div className="addrow">
-                <input
-                  type="text"
-                  placeholder="Portfolio task..."
-                  value={portfolioInput}
-                  onChange={(e) => setPortfolioInput(e.target.value)}
-                />
-                <button
-                  className="primary"
-                  onClick={() => {
-                    actions.addProject(portfolioInput, "portfolio");
-                    setPortfolioInput("");
-                  }}
-                >
-                  Add
-                </button>
-              </div>
-              <div className="checkin-q" style={{ margin: "14px 0 8px" }}>
-                Outreach targets
-              </div>
-              <ExternalLink href="https://linkedin.com/in/jessica-svendsen-266a0b136">Jessica Svendsen (LinkedIn)</ExternalLink>
-              <ExternalLink href="https://tinasmith.com">Tina Smith (Portfolio)</ExternalLink>
-              <ExternalLink href="https://diegogallego.es">Diego Gallego (Portfolio)</ExternalLink>
-              <ExternalLink href="https://adplist.org/explore">ADPList Explore</ExternalLink>
-              <div className="checkin-q" style={{ margin: "10px 0 8px" }}>
-                Study list
-              </div>
-              <ExternalLink href="https://www.youtube.com/watch?v=YLo6g58vUm0">Intro to Design Systems (YouTube)</ExternalLink>
-              <ExternalLink href="https://www.youtube.com/watch?v=Jjt-ZXY4eRY">100 Art Direction Ideas (YouTube)</ExternalLink>
-              <ExternalLink href="https://www.youtube.com/watch?v=7uV_V07p7L8">
-                Where Do Strategic Insights Come From? (market gap)
-              </ExternalLink>
-              <ExternalLink href="https://www.instagram.com/p/DHWhOdgRN3-/">Brand/system logic (IG)</ExternalLink>
-              <ExternalLink href="https://www.instagram.com/p/DGyLPiBR7m7/">Visual inspiration (IG)</ExternalLink>
-              <div className="checkin-q" style={{ margin: "10px 0 8px" }}>
-                Vault / Inspo
-              </div>
-              <ExternalLink href="https://www.figma.com/board/TDrBogrS8XreRY3QgGSGES/How-to-become-an-Art-Director?node-id=4-621">
-                How to Become an Art Director (Figma board)
-              </ExternalLink>
-              <ExternalLink href="https://www.elirothas.com/crayola">Crayola project (inspo)</ExternalLink>
+      <h2
+        style={{
+          fontFamily: "var(--font-fraunces), serif",
+          fontWeight: 500,
+          color: "var(--gold)",
+          fontSize: "15px",
+          margin: "0 0 4px",
+        }}
+      >
+        Projects
+      </h2>
+      {state.projects.map((p) => {
+        const projectMilestones = state.projectMilestones.filter((m) => m.projectId === p.id);
+        const done = projectMilestones.filter((m) => m.done).length;
+        const pct = projectMilestones.length ? Math.round((done / projectMilestones.length) * 100) : 0;
+        return (
+          <div
+            className="card"
+            style={{ cursor: "pointer" }}
+            key={p.id}
+            onClick={() => router.push(`/projects/${p.id}`)}
+          >
+            <h2>
+              {p.name}{" "}
+              <span style={{ fontSize: "11px", color: "var(--muted)", fontWeight: 400 }}>{p.type}</span>
+            </h2>
+            <div className="proglabel">
+              <span>
+                {done}/{projectMilestones.length} milestones
+              </span>
+              <span>{pct}%</span>
             </div>
-          ) : null}
+            {projectMilestones.length ? (
+              <ProjectProgressBar milestones={projectMilestones} tasks={state.tasks} />
+            ) : (
+              <div className="empty">No milestones yet — click in to add some.</div>
+            )}
+            <div style={{ display: "flex", justifyContent: "flex-end", alignItems: "center", gap: "8px", marginTop: "8px" }}>
+              <select
+                value={p.status}
+                onClick={(e) => e.stopPropagation()}
+                onChange={(e) => actions.updateProjectStatus(p.id, e.target.value)}
+              >
+                {["active", "waiting", "done"].map((s) => (
+                  <option value={s} key={s}>
+                    {s}
+                  </option>
+                ))}
+              </select>
+              <button
+                className="smallx"
+                onClick={(e) => {
+                  e.stopPropagation();
+                  actions.deleteProject(p.id);
+                }}
+              >
+                ×
+              </button>
+            </div>
+          </div>
+        );
+      })}
+      <div className="card">
+        <div className="addrow">
+          <input
+            type="text"
+            placeholder="New project name..."
+            value={newProjectName}
+            onChange={(e) => setNewProjectName(e.target.value)}
+          />
+          <select value={newProjectType} onChange={(e) => setNewProjectType(e.target.value as ProjectType)}>
+            {PROJECT_TYPES.map((t) => (
+              <option value={t} key={t}>
+                {t}
+              </option>
+            ))}
+          </select>
+          <button
+            className="primary"
+            onClick={() => {
+              actions.addProject(newProjectName, newProjectType);
+              setNewProjectName("");
+            }}
+          >
+            Add project
+          </button>
         </div>
+      </div>
 
+      <div className="card">
+        <h2>Portfolio Resources</h2>
+        <div className="checkin-q" style={{ margin: "0 0 8px" }}>
+          Outreach targets
+        </div>
+        <ExternalLink href="https://linkedin.com/in/jessica-svendsen-266a0b136">Jessica Svendsen (LinkedIn)</ExternalLink>
+        <ExternalLink href="https://tinasmith.com">Tina Smith (Portfolio)</ExternalLink>
+        <ExternalLink href="https://diegogallego.es">Diego Gallego (Portfolio)</ExternalLink>
+        <ExternalLink href="https://adplist.org/explore">ADPList Explore</ExternalLink>
+        <div className="checkin-q" style={{ margin: "10px 0 8px" }}>
+          Study list
+        </div>
+        <ExternalLink href="https://www.youtube.com/watch?v=YLo6g58vUm0">Intro to Design Systems (YouTube)</ExternalLink>
+        <ExternalLink href="https://www.youtube.com/watch?v=Jjt-ZXY4eRY">100 Art Direction Ideas (YouTube)</ExternalLink>
+        <ExternalLink href="https://www.youtube.com/watch?v=7uV_V07p7L8">
+          Where Do Strategic Insights Come From? (market gap)
+        </ExternalLink>
+        <ExternalLink href="https://www.instagram.com/p/DHWhOdgRN3-/">Brand/system logic (IG)</ExternalLink>
+        <ExternalLink href="https://www.instagram.com/p/DGyLPiBR7m7/">Visual inspiration (IG)</ExternalLink>
+        <div className="checkin-q" style={{ margin: "10px 0 8px" }}>
+          Vault / Inspo
+        </div>
+        <ExternalLink href="https://www.figma.com/board/TDrBogrS8XreRY3QgGSGES/How-to-become-an-Art-Director?node-id=4-621">
+          How to Become an Art Director (Figma board)
+        </ExternalLink>
+        <ExternalLink href="https://www.elirothas.com/crayola">Crayola project (inspo)</ExternalLink>
+      </div>
+
+      <div className="grid2">
         <MilestoneCard
           title="Weavy"
           track="weavy"

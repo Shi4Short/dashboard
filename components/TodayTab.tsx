@@ -85,6 +85,7 @@ export function TodayTab({
                       onToggle={actions.toggleTask}
                       onDelete={actions.deleteTask}
                       onPushTomorrow={actions.pushTaskToTomorrow}
+                      onCategoryChange={actions.updateTaskCategory}
                     />
                   ))}
                 </div>

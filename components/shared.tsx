@@ -11,17 +11,29 @@ export function TaskRow({
   onToggle,
   onDelete,
   onPushTomorrow,
+  onCategoryChange,
 }: {
   task: Task;
   showPush?: boolean;
   onToggle: (id: string) => void;
   onDelete: (id: string) => void;
   onPushTomorrow?: (id: string) => void;
+  onCategoryChange: (id: string, category: Category) => void;
 }) {
   return (
     <div className={`taskrow ${task.done ? "done" : ""}`}>
       <input type="checkbox" checked={task.done} onChange={() => onToggle(task.id)} />
-      <span className={`tag ${task.category}`}>{CATEGORY_LABEL[task.category]}</span>
+      <select
+        className={`tag ${task.category}`}
+        value={task.category}
+        onChange={(e) => onCategoryChange(task.id, e.target.value as Category)}
+      >
+        {CATEGORIES.map((c) => (
+          <option value={c} key={c}>
+            {CATEGORY_LABEL[c]}
+          </option>
+        ))}
+      </select>
       {task.fromCalendar ? (
         <span className="tag" style={{ background: "rgba(91,138,130,.2)", color: "var(--teal)" }}>
           📅 cal
@@ -173,7 +185,7 @@ export function WeekSquares({
           </div>
           {dayTasksFor(selectedDay).length ? (
             dayTasksFor(selectedDay).map((t) => (
-              <TaskRow key={t.id} task={t} onToggle={actions.toggleTask} onDelete={actions.deleteTask} />
+              <TaskRow key={t.id} task={t} onToggle={actions.toggleTask} onDelete={actions.deleteTask} onCategoryChange={actions.updateTaskCategory} />
             ))
           ) : (
             <div className="empty">Nothing scheduled.</div>
@@ -248,7 +260,7 @@ export function WeekGoalsList({
                 <div style={{ width: "100%", margin: "8px 0 4px 24px" }}>
                   {linkedTasks.length ? (
                     linkedTasks.map((t) => (
-                      <TaskRow key={t.id} task={t} onToggle={actions.toggleTask} onDelete={actions.deleteTask} />
+                      <TaskRow key={t.id} task={t} onToggle={actions.toggleTask} onDelete={actions.deleteTask} onCategoryChange={actions.updateTaskCategory} />
                     ))
                   ) : (
                     <div className="empty">No tasks linked yet.</div>
@@ -397,7 +409,7 @@ export function ProjectMilestonesList({
                 <div style={{ width: "100%", margin: "8px 0 4px 24px" }}>
                   {linkedTasks.length ? (
                     linkedTasks.map((t) => (
-                      <TaskRow key={t.id} task={t} onToggle={actions.toggleTask} onDelete={actions.deleteTask} />
+                      <TaskRow key={t.id} task={t} onToggle={actions.toggleTask} onDelete={actions.deleteTask} onCategoryChange={actions.updateTaskCategory} />
                     ))
                   ) : (
                     <div className="empty">No tasks linked yet.</div>

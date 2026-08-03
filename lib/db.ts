@@ -395,6 +395,12 @@ export async function getNotionLinkedDoneIds(): Promise<string[]> {
  * Notion's own status (not OR'd with the local value) so the next push
  * knows what's already confirmed synced. Items without a date can't be
  * placed on the date-based Today/Week/Month grids, so they're skipped.
+ *
+ * Before inserting a new task, this also checks for an existing unlinked
+ * task with the same title+date (most often the same real thing already
+ * pulled in from Google Calendar) and attaches to it instead of creating a
+ * duplicate row — same cross-source dedup as syncGoogleCalendarEvents does
+ * in the other direction.
  */
 export async function syncNotionGoalsAndTasks(
   items: NotionGoalTask[]
@@ -422,24 +428,49 @@ export async function syncNotionGoalsAndTasks(
             notion_done = EXCLUDED.notion_done
       `;
       goalsSynced++;
-    } else {
-      let projectId: string | null = null;
-      if (item.projectName) {
-        const [match] = await sql`SELECT id FROM projects WHERE lower(name) = lower(${item.projectName}) LIMIT 1`;
-        projectId = match ? (match.id as string) : null;
-      }
-      await sql`
-        INSERT INTO tasks (id, title, category, date, time, done, from_calendar, notion_page_id, notion_done, project_id)
-        VALUES (${randomUUID()}, ${item.name}, 'personal', ${item.date}, '', ${item.done}, false, ${item.id}, ${item.done}, ${projectId})
-        ON CONFLICT (notion_page_id) DO UPDATE
-        SET title = EXCLUDED.title,
-            date = EXCLUDED.date,
-            done = tasks.done OR EXCLUDED.done,
-            notion_done = EXCLUDED.notion_done,
-            project_id = EXCLUDED.project_id
-      `;
-      tasksSynced++;
+      continue;
     }
+
+    let projectId: string | null = null;
+    if (item.projectName) {
+      const [match] = await sql`SELECT id FROM projects WHERE lower(name) = lower(${item.projectName}) LIMIT 1`;
+      projectId = match ? (match.id as string) : null;
+    }
+
+    const [existing] = await sql`SELECT id FROM tasks WHERE notion_page_id = ${item.id}`;
+    if (existing) {
+      await sql`
+        UPDATE tasks
+        SET title = ${item.name},
+            date = ${item.date},
+            done = done OR ${item.done},
+            notion_done = ${item.done},
+            project_id = ${projectId},
+            category = COALESCE(${item.category}, category)
+        WHERE id = ${existing.id}
+      `;
+    } else {
+      const [dupe] = await sql`
+        SELECT id FROM tasks WHERE title = ${item.name} AND date = ${item.date} AND notion_page_id IS NULL LIMIT 1
+      `;
+      if (dupe) {
+        await sql`
+          UPDATE tasks
+          SET notion_page_id = ${item.id},
+              notion_done = ${item.done},
+              done = done OR ${item.done},
+              project_id = COALESCE(${projectId}, project_id),
+              category = COALESCE(${item.category}, category)
+          WHERE id = ${dupe.id}
+        `;
+      } else {
+        await sql`
+          INSERT INTO tasks (id, title, category, date, time, done, from_calendar, notion_page_id, notion_done, project_id)
+          VALUES (${randomUUID()}, ${item.name}, COALESCE(${item.category}, 'personal'), ${item.date}, '', ${item.done}, false, ${item.id}, ${item.done}, ${projectId})
+        `;
+      }
+    }
+    tasksSynced++;
   }
 
   return { tasksSynced, goalsSynced, skipped };
@@ -449,10 +480,14 @@ export async function syncNotionGoalsAndTasks(
  * Pulls Google Calendar events into the same tasks table Today/Week/Month
  * already read from, keyed on google_event_id — same shape as the Notion
  * import, minus any push-back (Calendar isn't a completion tracker, so
- * there's nothing to push). `done` is intentionally left out of the SET
- * clause on conflict so a locally-completed task never gets reset by a
- * re-sync; it's the same never-downgrade principle as the Notion sync,
- * simplified to one direction since Calendar has no done state to merge.
+ * there's nothing to push). `done` is left untouched on an existing row so
+ * a local completion is never reset by a re-sync.
+ *
+ * Before inserting a new task, this checks for an existing unlinked task
+ * with the same title+date (most often the same real thing already pulled
+ * in from Notion) and attaches to it instead of creating a duplicate row —
+ * same cross-source dedup as syncNotionGoalsAndTasks does in the other
+ * direction.
  */
 export async function syncGoogleCalendarEvents(
   events: CalendarEvent[]
@@ -468,14 +503,25 @@ export async function syncGoogleCalendarEvents(
     }
     const date = event.start.slice(0, 10);
     const time = event.allDay ? "" : event.start.slice(11, 16);
-    await sql`
-      INSERT INTO tasks (id, title, category, date, time, done, from_calendar, google_event_id)
-      VALUES (${randomUUID()}, ${event.title}, 'personal', ${date}, ${time}, false, true, ${event.id})
-      ON CONFLICT (google_event_id) DO UPDATE
-      SET title = EXCLUDED.title,
-          date = EXCLUDED.date,
-          time = EXCLUDED.time
-    `;
+
+    const [existing] = await sql`SELECT id FROM tasks WHERE google_event_id = ${event.id}`;
+    if (existing) {
+      await sql`UPDATE tasks SET title = ${event.title}, date = ${date}, time = ${time} WHERE id = ${existing.id}`;
+    } else {
+      const [dupe] = await sql`
+        SELECT id FROM tasks WHERE title = ${event.title} AND date = ${date} AND google_event_id IS NULL LIMIT 1
+      `;
+      if (dupe) {
+        await sql`
+          UPDATE tasks SET google_event_id = ${event.id}, from_calendar = true, time = ${time} WHERE id = ${dupe.id}
+        `;
+      } else {
+        await sql`
+          INSERT INTO tasks (id, title, category, date, time, done, from_calendar, google_event_id)
+          VALUES (${randomUUID()}, ${event.title}, 'personal', ${date}, ${time}, false, true, ${event.id})
+        `;
+      }
+    }
     synced++;
   }
 

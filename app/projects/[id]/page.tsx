@@ -95,7 +95,7 @@ export default function ProjectPage() {
                 </span>
               </h2>
               {unassignedTasks.map((t) => (
-                <TaskRow key={t.id} task={t} onToggle={actions.toggleTask} onDelete={actions.deleteTask} />
+                <TaskRow key={t.id} task={t} onToggle={actions.toggleTask} onDelete={actions.deleteTask} onCategoryChange={actions.updateTaskCategory} />
               ))}
             </div>
           ) : null}

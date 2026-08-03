@@ -1,6 +1,15 @@
 import { Client } from "@notionhq/client";
 import type { PageObjectResponse } from "@notionhq/client/build/src/api-endpoints/common";
-import { NOTION_PERIODS, type NetworkingContact, type NotionGoalTask, type NotionPeriod } from "./types";
+import { NOTION_PERIODS, type Category, type NetworkingContact, type NotionGoalTask, type NotionPeriod } from "./types";
+
+// Notion shows friendlier labels than our internal category slugs.
+const NOTION_CATEGORY_LABELS: Record<string, Category> = {
+  Content: "content",
+  "UGC Deal": "ugc",
+  "Design/Portfolio": "design",
+  Learning: "learning",
+  Personal: "personal",
+};
 
 // The databases this app knows how to sync. Not secret (visible in the
 // Notion URL) — the actual access control is the integration token below,
@@ -90,8 +99,10 @@ export async function fetchGoalsAndTasks(): Promise<NotionGoalTask[]> {
       const notes = props.Notes?.type === "rich_text" ? plainText(props.Notes.rich_text) : "";
       const done = props.Status?.type === "status" && props.Status.status?.name === "Done";
       const projectName = props.Project?.type === "select" ? (props.Project.select?.name ?? null) : null;
+      const categoryName = props.Category?.type === "select" ? props.Category.select?.name : undefined;
+      const category = categoryName ? (NOTION_CATEGORY_LABELS[categoryName] ?? null) : null;
 
-      return { id: page.id, name, date, period, notes, done, projectName };
+      return { id: page.id, name, date, period, notes, done, projectName, category };
     });
 }
 

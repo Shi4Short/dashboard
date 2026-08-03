@@ -106,6 +106,7 @@ export interface NotionGoalTask {
   notes: string;
   done: boolean;
   projectName: string | null;
+  category: Category | null;
 }
 
 export interface NetworkingContact {

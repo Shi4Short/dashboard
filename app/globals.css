@@ -225,6 +225,12 @@ button.ghost:hover {
   background: rgba(197, 197, 197, 0.12);
   color: var(--muted);
 }
+select.tag {
+  border: none;
+  appearance: none;
+  cursor: pointer;
+  width: auto;
+}
 .addrow {
   display: flex;
   gap: 6px;

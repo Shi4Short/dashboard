@@ -118,6 +118,11 @@ export function useManifestState() {
     });
   }, []);
 
+  const updateTaskCategory = useCallback(async (id: string, category: Category) => {
+    setState((s) => ({ ...s, tasks: s.tasks.map((t) => (t.id === id ? { ...t, category } : t)) }));
+    await api(`/api/tasks/${id}`, { method: "PATCH", body: JSON.stringify({ category }) }).catch(() => {});
+  }, []);
+
   const addDeal = useCallback(async (brand: string, stage: Stage, value: string) => {
     if (!brand.trim()) return;
     const deal = await api<AppState["deals"][number]>("/api/deals", {
@@ -322,6 +327,7 @@ export function useManifestState() {
       toggleTask,
       deleteTask,
       pushTaskToTomorrow,
+      updateTaskCategory,
       addDeal,
       updateDealStage,
       deleteDeal,

@@ -79,7 +79,7 @@ export function MonthTab({ state, actions }: { state: AppState; actions: Manifes
           <h2>{fmtDate(selectedDate)}</h2>
           {selTasks.length ? (
             selTasks.map((t) => (
-              <TaskRow key={t.id} task={t} onToggle={actions.toggleTask} onDelete={actions.deleteTask} />
+              <TaskRow key={t.id} task={t} onToggle={actions.toggleTask} onDelete={actions.deleteTask} onCategoryChange={actions.updateTaskCategory} />
             ))
           ) : (
             <div className="empty">Nothing on this day.</div>

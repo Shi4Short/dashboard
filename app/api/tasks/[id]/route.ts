@@ -28,6 +28,11 @@ export async function PATCH(request: NextRequest, { params }: { params: Promise<
     if (!rows.length) return NextResponse.json({ error: "not found" }, { status: 404 });
     return NextResponse.json(rowToTask(rows[0]));
   }
+  if (typeof body.time === "string") {
+    const rows = await sql`UPDATE tasks SET time = ${body.time} WHERE id = ${id} RETURNING *`;
+    if (!rows.length) return NextResponse.json({ error: "not found" }, { status: 404 });
+    return NextResponse.json(rowToTask(rows[0]));
+  }
   return NextResponse.json({ error: "no supported fields in body" }, { status: 400 });
 }
 

@@ -95,7 +95,26 @@ export default function ProjectPage() {
                 </span>
               </h2>
               {unassignedTasks.map((t) => (
-                <TaskRow key={t.id} task={t} onToggle={actions.toggleTask} onDelete={actions.deleteTask} onCategoryChange={actions.updateTaskCategory} />
+                <div key={t.id} style={{ display: "flex", alignItems: "center", gap: "8px" }}>
+                  <div style={{ flex: 1 }}>
+                    <TaskRow task={t} onToggle={actions.toggleTask} onDelete={actions.deleteTask} onCategoryChange={actions.updateTaskCategory} />
+                  </div>
+                  {milestones.length ? (
+                    <select
+                      value=""
+                      onChange={(e) => e.target.value && actions.assignTaskMilestone(t.id, e.target.value)}
+                    >
+                      <option value="" disabled>
+                        Assign to milestone…
+                      </option>
+                      {milestones.map((m) => (
+                        <option value={m.id} key={m.id}>
+                          {m.title}
+                        </option>
+                      ))}
+                    </select>
+                  ) : null}
+                </div>
               ))}
             </div>
           ) : null}

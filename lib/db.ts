@@ -410,11 +410,18 @@ export async function syncNotionGoalsAndTasks(
   let goalsSynced = 0;
   let skipped = 0;
 
-  for (const item of items) {
-    if (!item.name.trim() || !item.date) {
+  for (const rawItem of items) {
+    if (!rawItem.name.trim() || !rawItem.date) {
       skipped++;
       continue;
     }
+    // Notion's Date property returns a full ISO timestamp when "include
+    // time" is on for that page, instead of a plain YYYY-MM-DD like it
+    // returns for date-only pages. The tasks table (and the Calendar sync
+    // it cross-dedupes against) always keys on a plain date, so a mixed
+    // timestamp here would both miss the cross-source dedup match and
+    // never equal any Today/Week/Month view's plain date string.
+    const item = { ...rawItem, name: rawItem.name.trim(), date: rawItem.date.slice(0, 10) };
 
     if (item.period === "Weekly") {
       const weekStart = weekStartForDate(item.date);
@@ -433,7 +440,9 @@ export async function syncNotionGoalsAndTasks(
 
     let projectId: string | null = null;
     if (item.projectName) {
-      const [match] = await sql`SELECT id FROM projects WHERE lower(name) = lower(${item.projectName}) LIMIT 1`;
+      const [match] = await sql`
+        SELECT id FROM projects WHERE lower(trim(name)) = lower(trim(${item.projectName})) LIMIT 1
+      `;
       projectId = match ? (match.id as string) : null;
     }
 

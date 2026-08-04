@@ -81,20 +81,32 @@ export function useManifestState() {
 
   const toggleTask = useCallback(
     async (id: string) => {
+      let prevDone = false;
       let nextDone = false;
       setState((s) => ({
         ...s,
         tasks: s.tasks.map((t) => {
           if (t.id !== id) return t;
+          prevDone = t.done;
           nextDone = !t.done;
           return { ...t, done: nextDone };
         }),
       }));
-      await api(`/api/tasks/${id}`, { method: "PATCH", body: JSON.stringify({ done: nextDone }) }).catch(() => {});
+      try {
+        await api(`/api/tasks/${id}`, { method: "PATCH", body: JSON.stringify({ done: nextDone }) });
+      } catch {
+        setState((s) => ({ ...s, tasks: s.tasks.map((t) => (t.id === id ? { ...t, done: prevDone } : t)) }));
+        return;
+      }
       if (nextDone) refreshAfterCompletion();
     },
     [refreshAfterCompletion]
   );
+
+  const assignTaskMilestone = useCallback(async (id: string, projectMilestoneId: string | null) => {
+    setState((s) => ({ ...s, tasks: s.tasks.map((t) => (t.id === id ? { ...t, projectMilestoneId } : t)) }));
+    await api(`/api/tasks/${id}`, { method: "PATCH", body: JSON.stringify({ projectMilestoneId }) }).catch(() => {});
+  }, []);
 
   const deleteTask = useCallback(async (id: string) => {
     setState((s) => ({ ...s, tasks: s.tasks.filter((t) => t.id !== id) }));
@@ -221,18 +233,26 @@ export function useManifestState() {
 
   const toggleProjectMilestone = useCallback(
     async (id: string) => {
+      let prevDone = false;
       let nextDone = false;
       setState((s) => ({
         ...s,
         projectMilestones: s.projectMilestones.map((m) => {
           if (m.id !== id) return m;
+          prevDone = m.done;
           nextDone = !m.done;
           return { ...m, done: nextDone };
         }),
       }));
-      await api(`/api/project-milestones/${id}`, { method: "PATCH", body: JSON.stringify({ done: nextDone }) }).catch(
-        () => {}
-      );
+      try {
+        await api(`/api/project-milestones/${id}`, { method: "PATCH", body: JSON.stringify({ done: nextDone }) });
+      } catch {
+        setState((s) => ({
+          ...s,
+          projectMilestones: s.projectMilestones.map((m) => (m.id === id ? { ...m, done: prevDone } : m)),
+        }));
+        return;
+      }
       if (nextDone) refreshAfterCompletion();
     },
     [refreshAfterCompletion]
@@ -277,18 +297,23 @@ export function useManifestState() {
 
   const toggleWeekGoalDone = useCallback(
     async (id: string) => {
+      let prevDone = false;
       let nextDone = false;
       setState((s) => ({
         ...s,
         weekGoals: s.weekGoals.map((g) => {
           if (g.id !== id) return g;
+          prevDone = g.done;
           nextDone = !g.done;
           return { ...g, done: nextDone };
         }),
       }));
-      await api(`/api/week-goals/${id}`, { method: "PATCH", body: JSON.stringify({ done: nextDone }) }).catch(
-        () => {}
-      );
+      try {
+        await api(`/api/week-goals/${id}`, { method: "PATCH", body: JSON.stringify({ done: nextDone }) });
+      } catch {
+        setState((s) => ({ ...s, weekGoals: s.weekGoals.map((g) => (g.id === id ? { ...g, done: prevDone } : g)) }));
+        return;
+      }
       if (nextDone) refreshAfterCompletion();
     },
     [refreshAfterCompletion]
@@ -325,6 +350,7 @@ export function useManifestState() {
     actions: {
       addTask,
       toggleTask,
+      assignTaskMilestone,
       deleteTask,
       pushTaskToTomorrow,
       updateTaskCategory,

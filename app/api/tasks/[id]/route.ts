@@ -33,6 +33,16 @@ export async function PATCH(request: NextRequest, { params }: { params: Promise<
     if (!rows.length) return NextResponse.json({ error: "not found" }, { status: 404 });
     return NextResponse.json(rowToTask(rows[0]));
   }
+  if (body.projectMilestoneId === null || typeof body.projectMilestoneId === "string") {
+    const rows = await sql`
+      UPDATE tasks SET project_milestone_id = ${body.projectMilestoneId} WHERE id = ${id} RETURNING *
+    `;
+    if (!rows.length) return NextResponse.json({ error: "not found" }, { status: 404 });
+    // A task can arrive at a milestone already done (e.g. reassigning a
+    // completed task), so re-check whether that just completes the milestone.
+    if (body.projectMilestoneId && rows[0].done) await checkMilestoneAutoComplete(body.projectMilestoneId as string);
+    return NextResponse.json(rowToTask(rows[0]));
+  }
   return NextResponse.json({ error: "no supported fields in body" }, { status: 400 });
 }
 

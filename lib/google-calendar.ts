@@ -98,8 +98,14 @@ interface GoogleEvent {
 
 export async function fetchUpcomingEvents(): Promise<CalendarEvent[]> {
   const accessToken = await getAccessToken();
+  // Start of today, not the exact current moment — otherwise an event
+  // that already started earlier today drops out of every future sync
+  // permanently (timeMin always advances with "now"), so a task tied to
+  // it can never get its time backfilled once its start time has passed.
+  const startOfToday = new Date();
+  startOfToday.setHours(0, 0, 0, 0);
   const params = new URLSearchParams({
-    timeMin: new Date().toISOString(),
+    timeMin: startOfToday.toISOString(),
     maxResults: "20",
     singleEvents: "true",
     orderBy: "startTime",

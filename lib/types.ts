@@ -85,6 +85,13 @@ export interface LogEntry {
   id: string;
   date: string;
   text: string;
+  fromNotion: boolean;
+}
+
+export interface NotionEvidenceEntry {
+  id: string;
+  text: string;
+  date: string | null;
 }
 
 export interface WeekGoal {

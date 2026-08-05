@@ -12,6 +12,7 @@ import type {
   WeekGoal,
 } from "./types";
 import type { CalendarEvent } from "./google-calendar";
+import { fetchEvidenceEntries, pushEvidenceEntry } from "./notion";
 import { randomUUID } from "crypto";
 import { addDays, todayStr, weekStartForDate } from "./utils";
 
@@ -135,8 +136,10 @@ export function ensureSchema(): Promise<void> {
         id text PRIMARY KEY,
         date text NOT NULL,
         text text NOT NULL,
+        notion_page_id text UNIQUE,
         created_at timestamptz NOT NULL DEFAULT now()
       )`;
+      await sql`ALTER TABLE log_entries ADD COLUMN IF NOT EXISTS notion_page_id text UNIQUE`;
       await sql`CREATE TABLE IF NOT EXISTS settings (
         key text PRIMARY KEY,
         value text NOT NULL DEFAULT ''
@@ -226,6 +229,7 @@ export function rowToLogEntry(r: Record<string, unknown>): LogEntry {
     id: r.id as string,
     date: r.date as string,
     text: r.text as string,
+    fromNotion: r.notion_page_id != null,
   };
 }
 
@@ -258,10 +262,47 @@ export async function setSetting(key: string, value: string): Promise<void> {
  * end-of-day "Add evidence" step. Lives here rather than in a client hook so
  * it fires no matter what calls the API — the dashboard UI, a direct API
  * call, a future integration.
+ *
+ * Also auto-pushes to the Notion Evidence Log database — approved as an
+ * exception to the "review before it touches Notion" rule, since a factual
+ * record of what happened isn't the authored content that rule is about.
+ * The push is best-effort: a Notion hiccup should never block the actual
+ * completion from saving, so failures here are swallowed, not thrown.
  */
 export async function logCompletion(text: string): Promise<void> {
   if (!text.trim()) return;
-  await sql`INSERT INTO log_entries (id, date, text) VALUES (${randomUUID()}, ${todayStr()}, ${text})`;
+  const id = randomUUID();
+  const date = todayStr();
+  await sql`INSERT INTO log_entries (id, date, text) VALUES (${id}, ${date}, ${text})`;
+  try {
+    const pageId = await pushEvidenceEntry(text, date);
+    await sql`UPDATE log_entries SET notion_page_id = ${pageId} WHERE id = ${id}`;
+  } catch {
+    // Evidence still saved locally; just not linked to a Notion page.
+  }
+}
+
+/**
+ * Pulls new pages from the Notion Evidence Log database into log_entries,
+ * keyed on notion_page_id so anything already imported is skipped. This is
+ * the other half of the two-way sync — texting evidence to an assistant
+ * that writes into that database is what lands it here.
+ */
+export async function syncEvidenceFromNotion(): Promise<{ imported: number }> {
+  await ensureSchema();
+  const entries = await fetchEvidenceEntries();
+  let imported = 0;
+  for (const entry of entries) {
+    if (!entry.text.trim()) continue;
+    const rows = await sql`
+      INSERT INTO log_entries (id, date, text, notion_page_id)
+      VALUES (${randomUUID()}, ${entry.date ?? todayStr()}, ${entry.text}, ${entry.id})
+      ON CONFLICT (notion_page_id) DO NOTHING
+      RETURNING id
+    `;
+    if (rows.length) imported++;
+  }
+  return { imported };
 }
 
 /**

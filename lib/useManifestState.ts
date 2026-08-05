@@ -56,6 +56,13 @@ export function useManifestState() {
     api("/api/calendar/sync", { method: "POST" })
       .then(() => reloadState())
       .catch(() => {});
+
+    // Same pattern for Evidence: pulls in anything added to the Notion
+    // Evidence Log directly (e.g. texted to an assistant that writes there)
+    // since the last time the dashboard was open.
+    api("/api/notion/sync-evidence", { method: "POST" })
+      .then(() => reloadState())
+      .catch(() => {});
   }, [reloadState]);
 
   // The actual Evidence entry is created server-side (see lib/db.ts's

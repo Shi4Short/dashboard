@@ -1,6 +1,13 @@
 import { Client } from "@notionhq/client";
 import type { PageObjectResponse } from "@notionhq/client/build/src/api-endpoints/common";
-import { NOTION_PERIODS, type Category, type NetworkingContact, type NotionGoalTask, type NotionPeriod } from "./types";
+import {
+  NOTION_PERIODS,
+  type Category,
+  type NetworkingContact,
+  type NotionEvidenceEntry,
+  type NotionGoalTask,
+  type NotionPeriod,
+} from "./types";
 
 // Notion shows friendlier labels than our internal category slugs.
 const NOTION_CATEGORY_LABELS: Record<string, Category> = {
@@ -16,6 +23,7 @@ const NOTION_CATEGORY_LABELS: Record<string, Category> = {
 // which must be explicitly shared with each database in Notion.
 const NETWORKING_DATABASE_ID = process.env.NOTION_NETWORKING_DATABASE_ID || "ccd2b3c993404ab3a658be9606746e7c";
 const GOALS_TASKS_DATABASE_ID = process.env.NOTION_GOALS_TASKS_DATABASE_ID || "62b9c1d7c21e49319e41542f44e4aa5a";
+const EVIDENCE_LOG_DATABASE_ID = process.env.NOTION_EVIDENCE_LOG_DATABASE_ID || "4234bef8761d46efa5aede7955c905f2";
 
 let client: Client | undefined;
 const dataSourceIdCache = new Map<string, string>();
@@ -107,11 +115,12 @@ export async function fetchGoalsAndTasks(): Promise<NotionGoalTask[]> {
 }
 
 /**
- * The one write this app makes to Notion: flipping Status to Done on a row
- * that's already there. Never creates pages, never touches title/date/notes
- * — those stay Notion's own content, which is what the "review before it
- * touches Notion" rule is actually about. A plain status flip on an existing
- * row isn't that.
+ * Flips Status to Done on a Goals & Tasks row that's already there. Never
+ * touches title/date/notes on that database — those stay Notion's own
+ * content, which is what the "review before it touches Notion" rule is
+ * actually about. A plain status flip on an existing row isn't that (and
+ * per that same clarification, the Evidence Log push below isn't either —
+ * it's a factual record of what happened, not authored content).
  */
 export async function markGoalTaskDone(pageId: string): Promise<void> {
   const notion = getClient();
@@ -119,4 +128,36 @@ export async function markGoalTaskDone(pageId: string): Promise<void> {
     page_id: pageId,
     properties: { Status: { status: { name: "Done" } } },
   });
+}
+
+export async function fetchEvidenceEntries(): Promise<NotionEvidenceEntry[]> {
+  const notion = getClient();
+  const dataSourceId = await getDataSourceId(EVIDENCE_LOG_DATABASE_ID);
+  const response = await notion.dataSources.query({
+    data_source_id: dataSourceId,
+    sorts: [{ timestamp: "created_time", direction: "descending" }],
+  });
+
+  return response.results
+    .filter((page): page is PageObjectResponse => "properties" in page)
+    .map((page) => {
+      const props = page.properties;
+      const text = props.Name?.type === "title" ? plainText(props.Name.title) : "";
+      const date = props.Date?.type === "date" ? (props.Date.date?.start ?? null) : null;
+      return { id: page.id, text, date };
+    });
+}
+
+/** Creates a new page in the Evidence Log database. Returns its page ID. */
+export async function pushEvidenceEntry(text: string, date: string): Promise<string> {
+  const notion = getClient();
+  const dataSourceId = await getDataSourceId(EVIDENCE_LOG_DATABASE_ID);
+  const page = await notion.pages.create({
+    parent: { data_source_id: dataSourceId },
+    properties: {
+      Name: { title: [{ text: { content: text } }] },
+      Date: { date: { start: date } },
+    },
+  });
+  return page.id;
 }

@@ -12,7 +12,7 @@ import { EvidenceTab } from "./EvidenceTab";
 type Tab = "dashboard" | "today" | "week" | "month" | "quarter" | "evidence";
 
 export function ManifestApp() {
-  const { state, loaded, error, actions } = useManifestState();
+  const { state, loaded, error, actionError, clearActionError, actions } = useManifestState();
   const [activeTab, setActiveTab] = useState<Tab>("dashboard");
 
   if (!loaded) {
@@ -30,6 +30,28 @@ export function ManifestApp() {
 
   return (
     <div className="main">
+      {actionError ? (
+        <div
+          style={{
+            background: "rgba(181,101,74,.15)",
+            border: "1px solid var(--danger)",
+            color: "var(--danger)",
+            borderRadius: "8px",
+            padding: "10px 14px",
+            marginBottom: "14px",
+            display: "flex",
+            justifyContent: "space-between",
+            alignItems: "center",
+            gap: "12px",
+            fontSize: "13px",
+          }}
+        >
+          <span>{actionError}</span>
+          <button className="ghost" style={{ flexShrink: 0 }} onClick={clearActionError}>
+            Dismiss
+          </button>
+        </div>
+      ) : null}
       <div className="topbar">
         <div className="brand">
           747

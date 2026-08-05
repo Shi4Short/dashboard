@@ -31,6 +31,12 @@ export function useManifestState() {
   const [state, setState] = useState<AppState>(EMPTY_STATE);
   const [loaded, setLoaded] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  // Surfaced when a completion toggle (task/project/milestone/week goal)
+  // fails to save — those optimistically flip the checkbox before the
+  // request resolves, so a silent failure would otherwise leave the UI
+  // showing "done" for something that was never actually saved, with no way
+  // to tell. Distinct from `error` above, which is only for the initial load.
+  const [actionError, setActionError] = useState<string | null>(null);
 
   const reloadState = useCallback(async () => {
     const s = await api<AppState>("/api/state");
@@ -81,17 +87,24 @@ export function useManifestState() {
 
   const toggleTask = useCallback(
     async (id: string) => {
+      let prevDone = false;
       let nextDone = false;
       setState((s) => ({
         ...s,
         tasks: s.tasks.map((t) => {
           if (t.id !== id) return t;
+          prevDone = t.done;
           nextDone = !t.done;
           return { ...t, done: nextDone };
         }),
       }));
-      await api(`/api/tasks/${id}`, { method: "PATCH", body: JSON.stringify({ done: nextDone }) }).catch(() => {});
-      if (nextDone) refreshAfterCompletion();
+      try {
+        await api(`/api/tasks/${id}`, { method: "PATCH", body: JSON.stringify({ done: nextDone }) });
+        if (nextDone) refreshAfterCompletion();
+      } catch {
+        setState((s) => ({ ...s, tasks: s.tasks.map((t) => (t.id === id ? { ...t, done: prevDone } : t)) }));
+        setActionError("Couldn't save that — check your connection and try again.");
+      }
     },
     [refreshAfterCompletion]
   );
@@ -153,17 +166,29 @@ export function useManifestState() {
 
   const updateProjectStatus = useCallback(
     async (id: string, status: string) => {
+      let prevStatus: AppState["projects"][number]["status"] | undefined;
       let justCompleted = false;
       setState((s) => ({
         ...s,
         projects: s.projects.map((p) => {
           if (p.id !== id) return p;
+          prevStatus = p.status;
           justCompleted = status === "done" && p.status !== "done";
           return { ...p, status: status as (typeof p)["status"] };
         }),
       }));
-      await api(`/api/projects/${id}`, { method: "PATCH", body: JSON.stringify({ status }) }).catch(() => {});
-      if (justCompleted) refreshAfterCompletion();
+      try {
+        await api(`/api/projects/${id}`, { method: "PATCH", body: JSON.stringify({ status }) });
+        if (justCompleted) refreshAfterCompletion();
+      } catch {
+        if (prevStatus) {
+          setState((s) => ({
+            ...s,
+            projects: s.projects.map((p) => (p.id === id ? { ...p, status: prevStatus! } : p)),
+          }));
+        }
+        setActionError("Couldn't save that — check your connection and try again.");
+      }
     },
     [refreshAfterCompletion]
   );
@@ -221,19 +246,27 @@ export function useManifestState() {
 
   const toggleProjectMilestone = useCallback(
     async (id: string) => {
+      let prevDone = false;
       let nextDone = false;
       setState((s) => ({
         ...s,
         projectMilestones: s.projectMilestones.map((m) => {
           if (m.id !== id) return m;
+          prevDone = m.done;
           nextDone = !m.done;
           return { ...m, done: nextDone };
         }),
       }));
-      await api(`/api/project-milestones/${id}`, { method: "PATCH", body: JSON.stringify({ done: nextDone }) }).catch(
-        () => {}
-      );
-      if (nextDone) refreshAfterCompletion();
+      try {
+        await api(`/api/project-milestones/${id}`, { method: "PATCH", body: JSON.stringify({ done: nextDone }) });
+        if (nextDone) refreshAfterCompletion();
+      } catch {
+        setState((s) => ({
+          ...s,
+          projectMilestones: s.projectMilestones.map((m) => (m.id === id ? { ...m, done: prevDone } : m)),
+        }));
+        setActionError("Couldn't save that — check your connection and try again.");
+      }
     },
     [refreshAfterCompletion]
   );
@@ -277,19 +310,27 @@ export function useManifestState() {
 
   const toggleWeekGoalDone = useCallback(
     async (id: string) => {
+      let prevDone = false;
       let nextDone = false;
       setState((s) => ({
         ...s,
         weekGoals: s.weekGoals.map((g) => {
           if (g.id !== id) return g;
+          prevDone = g.done;
           nextDone = !g.done;
           return { ...g, done: nextDone };
         }),
       }));
-      await api(`/api/week-goals/${id}`, { method: "PATCH", body: JSON.stringify({ done: nextDone }) }).catch(
-        () => {}
-      );
-      if (nextDone) refreshAfterCompletion();
+      try {
+        await api(`/api/week-goals/${id}`, { method: "PATCH", body: JSON.stringify({ done: nextDone }) });
+        if (nextDone) refreshAfterCompletion();
+      } catch {
+        setState((s) => ({
+          ...s,
+          weekGoals: s.weekGoals.map((g) => (g.id === id ? { ...g, done: prevDone } : g)),
+        }));
+        setActionError("Couldn't save that — check your connection and try again.");
+      }
     },
     [refreshAfterCompletion]
   );
@@ -322,6 +363,8 @@ export function useManifestState() {
     state,
     loaded,
     error,
+    actionError,
+    clearActionError: useCallback(() => setActionError(null), []),
     actions: {
       addTask,
       toggleTask,

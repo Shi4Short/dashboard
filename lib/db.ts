@@ -513,9 +513,20 @@ export async function syncGoogleCalendarEvents(
     const date = event.start.slice(0, 10);
     const time = event.allDay ? "" : event.start.slice(11, 16);
 
-    const [existing] = await sql`SELECT id FROM tasks WHERE google_event_id = ${event.id}`;
+    const [existing] = await sql`SELECT id, push_count FROM tasks WHERE google_event_id = ${event.id}`;
     if (existing) {
-      await sql`UPDATE tasks SET title = ${event.title}, date = ${date}, time = ${time} WHERE id = ${existing.id}`;
+      // date/time are only ever pulled from Calendar for a task that's
+      // never been manually pushed — push_count is otherwise only ever
+      // incremented by pushTaskToTomorrow, so a nonzero count means the
+      // user deliberately moved this off its Calendar slot. Without this
+      // guard, every sync (which runs on every page load) snapped a pushed
+      // Calendar task straight back to its original day, silently undoing
+      // the push every time.
+      if (Number(existing.push_count) > 0) {
+        await sql`UPDATE tasks SET title = ${event.title} WHERE id = ${existing.id}`;
+      } else {
+        await sql`UPDATE tasks SET title = ${event.title}, date = ${date}, time = ${time} WHERE id = ${existing.id}`;
+      }
     } else {
       const [dupe] = await sql`
         SELECT id FROM tasks WHERE title = ${event.title} AND date = ${date} AND google_event_id IS NULL LIMIT 1

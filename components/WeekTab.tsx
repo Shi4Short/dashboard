@@ -4,7 +4,7 @@ import { useState } from "react";
 import type { ManifestActions } from "@/lib/useManifestState";
 import type { AppState } from "@/lib/types";
 import { fmtDate, weekDaysFor } from "@/lib/utils";
-import { AddWeekGoalRow, WeekGoalsList, WeekSquares } from "./shared";
+import { AddWeekGoalRow, WeekGoalsList } from "./shared";
 
 export function WeekTab({ state, actions }: { state: AppState; actions: ManifestActions }) {
   const [weekOffset, setWeekOffset] = useState(0);
@@ -12,6 +12,7 @@ export function WeekTab({ state, actions }: { state: AppState; actions: Manifest
   const days = weekDaysFor(weekOffset);
   const weekStart = days[0];
   const rangeLabel = `${fmtDate(days[0])} – ${fmtDate(days[6])}`;
+  const weekLogs = state.log.filter((l) => days.includes(l.date)).sort((a, b) => a.date.localeCompare(b.date));
 
   return (
     <>
@@ -32,12 +33,22 @@ export function WeekTab({ state, actions }: { state: AppState; actions: Manifest
             Jump to this week
           </button>
         ) : null}
-        <WeekSquares key={weekStart} days={days} compact={false} state={state} actions={actions} />
       </div>
       <div className="card">
         <h2>This Week&apos;s Goals</h2>
         <WeekGoalsList weekStart={weekStart} state={state} actions={actions} />
         <AddWeekGoalRow weekStart={weekStart} actions={actions} />
+        <h2 style={{ marginTop: "18px" }}>Evidence this week</h2>
+        {weekLogs.length ? (
+          weekLogs.map((l) => (
+            <div className="logentry" key={l.id}>
+              <div className="logdate">{fmtDate(l.date)}</div>
+              <div style={{ whiteSpace: "pre-line" }}>{l.text}</div>
+            </div>
+          ))
+        ) : (
+          <div className="empty">Nothing logged yet this week.</div>
+        )}
       </div>
     </>
   );

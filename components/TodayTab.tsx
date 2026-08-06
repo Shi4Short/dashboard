@@ -115,6 +115,21 @@ export function TodayTab({
               </button>
             </div>
           </div>
+          <div className="card">
+            <h2>Evidence for this day</h2>
+            {(() => {
+              const dayLogs = state.log.filter((l) => l.date === todayViewDate);
+              return dayLogs.length ? (
+                dayLogs.map((l) => (
+                  <div className="logentry" key={l.id}>
+                    <div style={{ whiteSpace: "pre-line" }}>{l.text}</div>
+                  </div>
+                ))
+              ) : (
+                <div className="empty">Nothing logged for this day yet.</div>
+              );
+            })()}
+          </div>
           {isActualToday ? (
             <div className="card">
               <h2>End of day</h2>

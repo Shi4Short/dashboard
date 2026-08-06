@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import type { AppState, Category, ProjectType, Stage } from "./types";
 import { addDays, todayStr } from "./utils";
 
@@ -38,9 +38,54 @@ export function useManifestState() {
   // to tell. Distinct from `error` above, which is only for the initial load.
   const [actionError, setActionError] = useState<string | null>(null);
 
+  // A reload's GET can be in flight for a while (especially the one chained
+  // after the background Calendar sync below, which waits on a Google API
+  // round trip) and resolve well after a toggle's own PATCH has already
+  // committed the opposite value. A blind `setState(s)` would then stomp
+  // the just-saved change back to its old value with no error, since
+  // nothing actually failed — the reload's response was just stale by the
+  // time it landed. Any id in one of these sets has a save in flight (or
+  // just landed), so reloadState keeps the current local value for it
+  // instead of trusting a response that may predate that save.
+  const pendingTaskIds = useRef<Set<string>>(new Set());
+  const pendingMilestoneIds = useRef<Set<string>>(new Set());
+  const pendingGoalIds = useRef<Set<string>>(new Set());
+
+  // Guards the other half of the same staleness problem: two reloadState
+  // calls can overlap (e.g. the background Calendar-sync reload below and a
+  // toggle's own post-save refresh), and there's no guarantee the one
+  // dispatched first also resolves first. Each call claims the next number
+  // when it *starts*; if a later-dispatched call has already claimed a
+  // higher number by the time this one's fetch resolves, this one is stale
+  // by definition (whatever it read, a newer read has since been kicked
+  // off) and its response is dropped instead of applied.
+  const latestReloadRef = useRef(0);
+
   const reloadState = useCallback(async () => {
+    const mySeq = ++latestReloadRef.current;
+    // Only mutations already pending when *this* reload was dispatched are
+    // safe to reconcile from its response — anything added afterward (a
+    // toggle that started while this GET was already in flight) still needs
+    // protecting, since this response was captured before that mutation's
+    // own save even began.
+    const taskIdsToClear = new Set(pendingTaskIds.current);
+    const milestoneIdsToClear = new Set(pendingMilestoneIds.current);
+    const goalIdsToClear = new Set(pendingGoalIds.current);
     const s = await api<AppState>("/api/state");
-    setState(s);
+    if (mySeq !== latestReloadRef.current) return;
+    taskIdsToClear.forEach((id) => pendingTaskIds.current.delete(id));
+    milestoneIdsToClear.forEach((id) => pendingMilestoneIds.current.delete(id));
+    goalIdsToClear.forEach((id) => pendingGoalIds.current.delete(id));
+    setState((prev) => ({
+      ...s,
+      tasks: s.tasks.map((t) => (pendingTaskIds.current.has(t.id) ? prev.tasks.find((p) => p.id === t.id) ?? t : t)),
+      projectMilestones: s.projectMilestones.map((m) =>
+        pendingMilestoneIds.current.has(m.id) ? prev.projectMilestones.find((p) => p.id === m.id) ?? m : m
+      ),
+      weekGoals: s.weekGoals.map((g) =>
+        pendingGoalIds.current.has(g.id) ? prev.weekGoals.find((p) => p.id === g.id) ?? g : g
+      ),
+    }));
   }, []);
 
   useEffect(() => {
@@ -89,6 +134,7 @@ export function useManifestState() {
     async (id: string) => {
       let prevDone = false;
       let nextDone = false;
+      pendingTaskIds.current.add(id);
       setState((s) => ({
         ...s,
         tasks: s.tasks.map((t) => {
@@ -100,8 +146,14 @@ export function useManifestState() {
       }));
       try {
         await api(`/api/tasks/${id}`, { method: "PATCH", body: JSON.stringify({ done: nextDone }) });
-        if (nextDone) refreshAfterCompletion();
+        // Left pending on success (rather than cleared here) so a reload that
+        // was already in flight when this started can't land afterward and
+        // stomp it back — reloadState only releases ids it saw pending
+        // before it was dispatched, so this clears on the next one dispatched
+        // after this point instead, which is guaranteed to read the commit.
+        refreshAfterCompletion();
       } catch {
+        pendingTaskIds.current.delete(id);
         setState((s) => ({ ...s, tasks: s.tasks.map((t) => (t.id === id ? { ...t, done: prevDone } : t)) }));
         setActionError("Couldn't save that — check your connection and try again.");
       }
@@ -253,6 +305,7 @@ export function useManifestState() {
     async (id: string) => {
       let prevDone = false;
       let nextDone = false;
+      pendingMilestoneIds.current.add(id);
       setState((s) => ({
         ...s,
         projectMilestones: s.projectMilestones.map((m) => {
@@ -264,8 +317,9 @@ export function useManifestState() {
       }));
       try {
         await api(`/api/project-milestones/${id}`, { method: "PATCH", body: JSON.stringify({ done: nextDone }) });
-        if (nextDone) refreshAfterCompletion();
+        refreshAfterCompletion();
       } catch {
+        pendingMilestoneIds.current.delete(id);
         setState((s) => ({
           ...s,
           projectMilestones: s.projectMilestones.map((m) => (m.id === id ? { ...m, done: prevDone } : m)),
@@ -317,6 +371,7 @@ export function useManifestState() {
     async (id: string) => {
       let prevDone = false;
       let nextDone = false;
+      pendingGoalIds.current.add(id);
       setState((s) => ({
         ...s,
         weekGoals: s.weekGoals.map((g) => {
@@ -328,8 +383,9 @@ export function useManifestState() {
       }));
       try {
         await api(`/api/week-goals/${id}`, { method: "PATCH", body: JSON.stringify({ done: nextDone }) });
-        if (nextDone) refreshAfterCompletion();
+        refreshAfterCompletion();
       } catch {
+        pendingGoalIds.current.delete(id);
         setState((s) => ({
           ...s,
           weekGoals: s.weekGoals.map((g) => (g.id === id ? { ...g, done: prevDone } : g)),

@@ -39,6 +39,15 @@ export async function GET() {
     pitchLogMap[row.date as string] = Number(row.count);
   }
 
+  // A log entry linked to a task tracks that task's *current* date rather
+  // than the date frozen into the row at insert time — the task can move
+  // afterward (a push, a Calendar/Notion resync, a manual edit), and the
+  // evidence should follow it there rather than staying stuck on whichever
+  // day the checkbox happened to get hit. Entries whose task has since been
+  // deleted fall back to their own stored date.
+  const taskDateById = new Map(tasks.map((t) => [t.id as string, t.date as string]));
+  const logEntries = log.map(rowToLogEntry).map((l) => (l.taskId && taskDateById.has(l.taskId) ? { ...l, date: taskDateById.get(l.taskId)! } : l));
+
   const state: AppState = {
     tasks: tasks.map(rowToTask),
     deals: deals.map(rowToDeal),
@@ -48,7 +57,7 @@ export async function GET() {
     subs: subs.map(rowToSub),
     financeEntries: financeEntries.map(rowToFinanceEntry),
     pitchLog: pitchLogMap,
-    log: log.map(rowToLogEntry),
+    log: logEntries,
     weekGoals: weekGoals.map(rowToWeekGoal),
     q3goals: q3goals[0]?.value ?? "",
   };

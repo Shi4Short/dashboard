@@ -114,11 +114,14 @@ export function WeekSquares({
   compact,
   state,
   actions,
+  expandable = true,
 }: {
   days: string[];
   compact: boolean;
   state: AppState;
   actions: ManifestActions;
+  /** Set false for a pure glance strip - no click-to-expand daily task list. */
+  expandable?: boolean;
 }) {
   const t0 = todayStr();
   const sz = compact ? "70px" : "140px";
@@ -140,9 +143,9 @@ export function WeekSquares({
           return (
             <div
               className={`calcell ${ds === t0 ? "today" : ""} ${ds === selectedDay ? "selected" : ""}`}
-              style={{ minHeight: sz }}
+              style={{ minHeight: sz, cursor: expandable ? "pointer" : "default" }}
               key={ds}
-              onClick={() => setSelectedDay((cur) => (cur === ds ? null : ds))}
+              onClick={expandable ? () => setSelectedDay((cur) => (cur === ds ? null : ds)) : undefined}
             >
               <div className="daynum">
                 {weekday} {ds.slice(8, 10)}
@@ -185,7 +188,7 @@ export function WeekSquares({
           );
         })}
       </div>
-      {selectedDay ? (
+      {expandable && selectedDay ? (
         <div className="milestonelist">
           <div className="checkin-q" style={{ marginBottom: "6px" }}>
             {fmtDate(selectedDay)}

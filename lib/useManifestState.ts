@@ -109,6 +109,11 @@ export function useManifestState() {
     [refreshAfterCompletion]
   );
 
+  const assignTaskMilestone = useCallback(async (id: string, projectMilestoneId: string | null) => {
+    setState((s) => ({ ...s, tasks: s.tasks.map((t) => (t.id === id ? { ...t, projectMilestoneId } : t)) }));
+    await api(`/api/tasks/${id}`, { method: "PATCH", body: JSON.stringify({ projectMilestoneId }) }).catch(() => {});
+  }, []);
+
   const deleteTask = useCallback(async (id: string) => {
     setState((s) => ({ ...s, tasks: s.tasks.filter((t) => t.id !== id) }));
     await api(`/api/tasks/${id}`, { method: "DELETE" }).catch(() => {});
@@ -368,6 +373,7 @@ export function useManifestState() {
     actions: {
       addTask,
       toggleTask,
+      assignTaskMilestone,
       deleteTask,
       pushTaskToTomorrow,
       updateTaskCategory,

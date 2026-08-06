@@ -10,7 +10,8 @@ export async function PATCH(request: NextRequest, { params }: { params: Promise<
   const hasDate = typeof body.date === "string";
   const hasCategory = typeof body.category === "string";
   const hasTime = typeof body.time === "string";
-  if (!hasDone && !hasDate && !hasCategory && !hasTime) {
+  const hasMilestone = body.projectMilestoneId === null || typeof body.projectMilestoneId === "string";
+  if (!hasDone && !hasDate && !hasCategory && !hasTime && !hasMilestone) {
     return NextResponse.json({ error: "no supported fields in body" }, { status: 400 });
   }
 
@@ -30,6 +31,7 @@ export async function PATCH(request: NextRequest, { params }: { params: Promise<
   }
   if (hasCategory) await sql`UPDATE tasks SET category = ${body.category} WHERE id = ${id}`;
   if (hasTime) await sql`UPDATE tasks SET time = ${body.time} WHERE id = ${id}`;
+  if (hasMilestone) await sql`UPDATE tasks SET project_milestone_id = ${body.projectMilestoneId} WHERE id = ${id}`;
 
   const rows = await sql`SELECT * FROM tasks WHERE id = ${id}`;
   if (!rows.length) return NextResponse.json({ error: "not found" }, { status: 404 });
@@ -37,6 +39,11 @@ export async function PATCH(request: NextRequest, { params }: { params: Promise<
   if (hasDone && body.done && !existing?.done) {
     await logCompletion(rows[0].title as string);
     if (rows[0].project_milestone_id) await checkMilestoneAutoComplete(rows[0].project_milestone_id as string);
+  }
+  // A task can arrive at a milestone already done (e.g. reassigning a
+  // completed task), so re-check whether that just completes the milestone.
+  if (hasMilestone && body.projectMilestoneId && rows[0].done) {
+    await checkMilestoneAutoComplete(body.projectMilestoneId as string);
   }
   return NextResponse.json(rowToTask(rows[0]));
 }

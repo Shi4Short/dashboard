@@ -137,6 +137,12 @@ export function ensureSchema(): Promise<void> {
         text text NOT NULL,
         created_at timestamptz NOT NULL DEFAULT now()
       )`;
+      // Links a task-completion entry back to the task that generated it, so
+      // its displayed date can track that task's current date (see
+      // /api/state) instead of freezing at whatever date the task happened
+      // to have the moment it was checked off. `date` remains the fallback
+      // once the task is deleted, and is still what manual/EOD entries use.
+      await sql`ALTER TABLE log_entries ADD COLUMN IF NOT EXISTS task_id text REFERENCES tasks(id) ON DELETE SET NULL`;
       await sql`CREATE TABLE IF NOT EXISTS settings (
         key text PRIMARY KEY,
         value text NOT NULL DEFAULT ''
@@ -226,6 +232,7 @@ export function rowToLogEntry(r: Record<string, unknown>): LogEntry {
     id: r.id as string,
     date: r.date as string,
     text: r.text as string,
+    taskId: (r.task_id as string | null) ?? null,
   };
 }
 
@@ -259,9 +266,9 @@ export async function setSetting(key: string, value: string): Promise<void> {
  * it fires no matter what calls the API — the dashboard UI, a direct API
  * call, a future integration.
  */
-export async function logCompletion(text: string, date: string = todayStr()): Promise<void> {
+export async function logCompletion(text: string, date: string = todayStr(), taskId: string | null = null): Promise<void> {
   if (!text.trim()) return;
-  await sql`INSERT INTO log_entries (id, date, text) VALUES (${randomUUID()}, ${date}, ${text})`;
+  await sql`INSERT INTO log_entries (id, date, text, task_id) VALUES (${randomUUID()}, ${date}, ${text}, ${taskId})`;
 }
 
 /**
@@ -550,25 +557,27 @@ export async function syncGoogleCalendarEvents(
 
 /**
  * One-time cleanup for Evidence entries logged before task completions were
- * dated to the task's own day instead of the server's current date (see
- * logCompletion). Only touches entries whose text exactly matches exactly
- * one task's title — anything ambiguous (no match, or the same title on
- * more than one task) is left alone rather than guessed at, since a wrong
- * correction here is worse than an entry that's merely still stale.
+ * linked back to their task via task_id (see logCompletion / /api/state).
+ * Backfills task_id (which is what makes an entry's displayed date track
+ * its task going forward, not just correct it once) for entries whose text
+ * exactly matches exactly one task's title — anything ambiguous (no match,
+ * or the same title on more than one task) is left alone rather than
+ * guessed at, since a wrong link here is worse than an entry that's merely
+ * still unlinked.
  */
 export async function reconcileEvidenceDates(): Promise<{ fixed: number; skipped: number }> {
   await ensureSchema();
-  const entries = await sql`SELECT id, date, text FROM log_entries`;
+  const entries = await sql`SELECT id, date, text FROM log_entries WHERE task_id IS NULL`;
   let fixed = 0;
   let skipped = 0;
 
   for (const entry of entries) {
-    const matches = await sql`SELECT date FROM tasks WHERE title = ${entry.text as string}`;
-    if (matches.length !== 1 || matches[0].date === entry.date) {
+    const matches = await sql`SELECT id, date FROM tasks WHERE title = ${entry.text as string}`;
+    if (matches.length !== 1) {
       skipped++;
       continue;
     }
-    await sql`UPDATE log_entries SET date = ${matches[0].date} WHERE id = ${entry.id}`;
+    await sql`UPDATE log_entries SET task_id = ${matches[0].id}, date = ${matches[0].date} WHERE id = ${entry.id}`;
     fixed++;
   }
 

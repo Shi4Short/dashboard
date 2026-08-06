@@ -85,6 +85,7 @@ export interface LogEntry {
   id: string;
   date: string;
   text: string;
+  taskId: string | null;
 }
 
 export interface WeekGoal {

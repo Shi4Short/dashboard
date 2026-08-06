@@ -4,7 +4,7 @@ import { useState } from "react";
 import type { ManifestActions } from "@/lib/useManifestState";
 import type { AppState } from "@/lib/types";
 import { fmtDate, weekDaysFor } from "@/lib/utils";
-import { AddWeekGoalRow, WeekGoalsList } from "./shared";
+import { AddWeekGoalRow, WeekGoalsList, WeekSquares } from "./shared";
 
 export function WeekTab({ state, actions }: { state: AppState; actions: ManifestActions }) {
   const [weekOffset, setWeekOffset] = useState(0);
@@ -33,6 +33,7 @@ export function WeekTab({ state, actions }: { state: AppState; actions: Manifest
             Jump to this week
           </button>
         ) : null}
+        <WeekSquares key={weekStart} days={days} compact state={state} actions={actions} expandable={false} />
       </div>
       <div className="card">
         <h2>This Week&apos;s Goals</h2>

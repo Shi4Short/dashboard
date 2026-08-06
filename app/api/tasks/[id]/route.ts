@@ -36,14 +36,19 @@ export async function PATCH(request: NextRequest, { params }: { params: Promise<
   const rows = await sql`SELECT * FROM tasks WHERE id = ${id}`;
   if (!rows.length) return NextResponse.json({ error: "not found" }, { status: 404 });
 
+  // Logged under the task's own date, not the server's current date — a
+  // task worked through days after its date (catching up on a backlog, or
+  // just working past midnight) should still count as evidence for the day
+  // it was scheduled for, not whatever day the checkbox happened to get hit.
+  const taskDate = rows[0].date as string;
   if (hasDone && body.done && !existing?.done) {
-    await logCompletion(rows[0].title as string);
-    if (rows[0].project_milestone_id) await checkMilestoneAutoComplete(rows[0].project_milestone_id as string);
+    await logCompletion(rows[0].title as string, taskDate);
+    if (rows[0].project_milestone_id) await checkMilestoneAutoComplete(rows[0].project_milestone_id as string, taskDate);
   }
   // A task can arrive at a milestone already done (e.g. reassigning a
   // completed task), so re-check whether that just completes the milestone.
   if (hasMilestone && body.projectMilestoneId && rows[0].done) {
-    await checkMilestoneAutoComplete(body.projectMilestoneId as string);
+    await checkMilestoneAutoComplete(body.projectMilestoneId as string, taskDate);
   }
   return NextResponse.json(rowToTask(rows[0]));
 }

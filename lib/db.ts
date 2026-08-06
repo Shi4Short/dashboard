@@ -259,9 +259,9 @@ export async function setSetting(key: string, value: string): Promise<void> {
  * it fires no matter what calls the API — the dashboard UI, a direct API
  * call, a future integration.
  */
-export async function logCompletion(text: string): Promise<void> {
+export async function logCompletion(text: string, date: string = todayStr()): Promise<void> {
   if (!text.trim()) return;
-  await sql`INSERT INTO log_entries (id, date, text) VALUES (${randomUUID()}, ${todayStr()}, ${text})`;
+  await sql`INSERT INTO log_entries (id, date, text) VALUES (${randomUUID()}, ${date}, ${text})`;
 }
 
 /**
@@ -275,7 +275,7 @@ export async function logCompletion(text: string): Promise<void> {
  * Both steps log to Evidence the same way a manual done-toggle does, and
  * both are no-ops if already done, so nothing double-logs.
  */
-export async function checkMilestoneAutoComplete(projectMilestoneId: string): Promise<void> {
+export async function checkMilestoneAutoComplete(projectMilestoneId: string, date: string = todayStr()): Promise<void> {
   const [{ total, remaining }] = await sql`
     SELECT count(*) AS total, count(*) FILTER (WHERE NOT done) AS remaining
     FROM tasks WHERE project_milestone_id = ${projectMilestoneId}
@@ -286,8 +286,8 @@ export async function checkMilestoneAutoComplete(projectMilestoneId: string): Pr
   if (!milestone || milestone.done) return;
 
   await sql`UPDATE project_milestones SET done = true WHERE id = ${projectMilestoneId}`;
-  await logCompletion(`Milestone complete: ${milestone.title}`);
-  await checkProjectMilestonesComplete(milestone.project_id as string);
+  await logCompletion(`Milestone complete: ${milestone.title}`, date);
+  await checkProjectMilestonesComplete(milestone.project_id as string, date);
 }
 
 /**
@@ -295,7 +295,7 @@ export async function checkMilestoneAutoComplete(projectMilestoneId: string): Pr
  * marked done directly (not via its tasks all finishing) — same "all
  * milestones done -> project auto-completes" rule either way.
  */
-export async function checkProjectMilestonesComplete(projectId: string): Promise<void> {
+export async function checkProjectMilestonesComplete(projectId: string, date: string = todayStr()): Promise<void> {
   const [{ total, remaining }] = await sql`
     SELECT count(*) AS total, count(*) FILTER (WHERE NOT done) AS remaining
     FROM project_milestones WHERE project_id = ${projectId}
@@ -306,7 +306,7 @@ export async function checkProjectMilestonesComplete(projectId: string): Promise
   if (!project || project.status === "done") return;
 
   await sql`UPDATE projects SET status = 'done' WHERE id = ${projectId}`;
-  await logCompletion(`Completed: ${project.name}`);
+  await logCompletion(`Completed: ${project.name}`, date);
 }
 
 /**

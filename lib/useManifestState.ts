@@ -89,8 +89,11 @@ export function useManifestState() {
   }, []);
 
   useEffect(() => {
-    api<AppState>("/api/state")
-      .then((s) => setState(s))
+    // Routed through reloadState (not a bare fetch+setState) so a toggle
+    // fired the instant the page loads is covered by the same staleness
+    // guards as every later reload — this request is just as capable of
+    // resolving after such a toggle's own PATCH has already committed.
+    reloadState()
       .catch((e) => setError(e instanceof Error ? e.message : String(e)))
       .finally(() => setLoaded(true));
 

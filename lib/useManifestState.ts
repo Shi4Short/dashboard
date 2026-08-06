@@ -31,6 +31,12 @@ export function useManifestState() {
   const [state, setState] = useState<AppState>(EMPTY_STATE);
   const [loaded, setLoaded] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  // Surfaced when a completion toggle (task/project/milestone/week goal)
+  // fails to save — those optimistically flip the checkbox before the
+  // request resolves, so a silent failure would otherwise leave the UI
+  // showing "done" for something that was never actually saved, with no way
+  // to tell. Distinct from `error` above, which is only for the initial load.
+  const [actionError, setActionError] = useState<string | null>(null);
 
   const reloadState = useCallback(async () => {
     const s = await api<AppState>("/api/state");
@@ -94,11 +100,11 @@ export function useManifestState() {
       }));
       try {
         await api(`/api/tasks/${id}`, { method: "PATCH", body: JSON.stringify({ done: nextDone }) });
+        if (nextDone) refreshAfterCompletion();
       } catch {
         setState((s) => ({ ...s, tasks: s.tasks.map((t) => (t.id === id ? { ...t, done: prevDone } : t)) }));
-        return;
+        setActionError("Couldn't save that — check your connection and try again.");
       }
-      if (nextDone) refreshAfterCompletion();
     },
     [refreshAfterCompletion]
   );
@@ -165,17 +171,29 @@ export function useManifestState() {
 
   const updateProjectStatus = useCallback(
     async (id: string, status: string) => {
+      let prevStatus: AppState["projects"][number]["status"] | undefined;
       let justCompleted = false;
       setState((s) => ({
         ...s,
         projects: s.projects.map((p) => {
           if (p.id !== id) return p;
+          prevStatus = p.status;
           justCompleted = status === "done" && p.status !== "done";
           return { ...p, status: status as (typeof p)["status"] };
         }),
       }));
-      await api(`/api/projects/${id}`, { method: "PATCH", body: JSON.stringify({ status }) }).catch(() => {});
-      if (justCompleted) refreshAfterCompletion();
+      try {
+        await api(`/api/projects/${id}`, { method: "PATCH", body: JSON.stringify({ status }) });
+        if (justCompleted) refreshAfterCompletion();
+      } catch {
+        if (prevStatus) {
+          setState((s) => ({
+            ...s,
+            projects: s.projects.map((p) => (p.id === id ? { ...p, status: prevStatus! } : p)),
+          }));
+        }
+        setActionError("Couldn't save that — check your connection and try again.");
+      }
     },
     [refreshAfterCompletion]
   );
@@ -246,14 +264,14 @@ export function useManifestState() {
       }));
       try {
         await api(`/api/project-milestones/${id}`, { method: "PATCH", body: JSON.stringify({ done: nextDone }) });
+        if (nextDone) refreshAfterCompletion();
       } catch {
         setState((s) => ({
           ...s,
           projectMilestones: s.projectMilestones.map((m) => (m.id === id ? { ...m, done: prevDone } : m)),
         }));
-        return;
+        setActionError("Couldn't save that — check your connection and try again.");
       }
-      if (nextDone) refreshAfterCompletion();
     },
     [refreshAfterCompletion]
   );
@@ -310,11 +328,14 @@ export function useManifestState() {
       }));
       try {
         await api(`/api/week-goals/${id}`, { method: "PATCH", body: JSON.stringify({ done: nextDone }) });
+        if (nextDone) refreshAfterCompletion();
       } catch {
-        setState((s) => ({ ...s, weekGoals: s.weekGoals.map((g) => (g.id === id ? { ...g, done: prevDone } : g)) }));
-        return;
+        setState((s) => ({
+          ...s,
+          weekGoals: s.weekGoals.map((g) => (g.id === id ? { ...g, done: prevDone } : g)),
+        }));
+        setActionError("Couldn't save that — check your connection and try again.");
       }
-      if (nextDone) refreshAfterCompletion();
     },
     [refreshAfterCompletion]
   );
@@ -347,6 +368,8 @@ export function useManifestState() {
     state,
     loaded,
     error,
+    actionError,
+    clearActionError: useCallback(() => setActionError(null), []),
     actions: {
       addTask,
       toggleTask,

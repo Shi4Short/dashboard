@@ -126,12 +126,14 @@ export function WeekSquares({
 
   const dayTasksFor = (ds: string) =>
     state.tasks.filter((t) => t.date === ds).sort((a, b) => (a.time || "99").localeCompare(b.time || "99"));
+  const dayLogsFor = (ds: string) => state.log.filter((l) => l.date === ds);
 
   return (
     <>
       <div className="grid3" style={{ gridTemplateColumns: "repeat(7,1fr)", gap: compact ? "6px" : "8px" }}>
         {days.map((ds) => {
           const dayTasks = dayTasksFor(ds);
+          const dayLogs = dayLogsFor(ds);
           const done = dayTasks.filter((t) => t.done).length;
           const weekday = new Date(ds + "T00:00:00").toLocaleDateString("en-US", { weekday: "short" });
 
@@ -148,6 +150,11 @@ export function WeekSquares({
               {dayTasks.length ? (
                 <div style={{ fontSize: "10px", color: "var(--muted)", margin: "4px 0" }}>
                   {done}/{dayTasks.length} done
+                </div>
+              ) : null}
+              {dayLogs.length ? (
+                <div style={{ fontSize: "10px", color: "var(--gold)", margin: "4px 0" }}>
+                  📝 {dayLogs.length} logged
                 </div>
               ) : null}
               {!compact
@@ -190,6 +197,18 @@ export function WeekSquares({
           ) : (
             <div className="empty">Nothing scheduled.</div>
           )}
+          {dayLogsFor(selectedDay).length ? (
+            <>
+              <div className="checkin-q" style={{ margin: "12px 0 6px" }}>
+                Evidence
+              </div>
+              {dayLogsFor(selectedDay).map((l) => (
+                <div className="logentry" key={l.id}>
+                  <div style={{ whiteSpace: "pre-line" }}>{l.text}</div>
+                </div>
+              ))}
+            </>
+          ) : null}
         </div>
       ) : null}
     </>

@@ -547,3 +547,30 @@ export async function syncGoogleCalendarEvents(
 
   return { synced, skipped };
 }
+
+/**
+ * One-time cleanup for Evidence entries logged before task completions were
+ * dated to the task's own day instead of the server's current date (see
+ * logCompletion). Only touches entries whose text exactly matches exactly
+ * one task's title — anything ambiguous (no match, or the same title on
+ * more than one task) is left alone rather than guessed at, since a wrong
+ * correction here is worse than an entry that's merely still stale.
+ */
+export async function reconcileEvidenceDates(): Promise<{ fixed: number; skipped: number }> {
+  await ensureSchema();
+  const entries = await sql`SELECT id, date, text FROM log_entries`;
+  let fixed = 0;
+  let skipped = 0;
+
+  for (const entry of entries) {
+    const matches = await sql`SELECT date FROM tasks WHERE title = ${entry.text as string}`;
+    if (matches.length !== 1 || matches[0].date === entry.date) {
+      skipped++;
+      continue;
+    }
+    await sql`UPDATE log_entries SET date = ${matches[0].date} WHERE id = ${entry.id}`;
+    fixed++;
+  }
+
+  return { fixed, skipped };
+}
